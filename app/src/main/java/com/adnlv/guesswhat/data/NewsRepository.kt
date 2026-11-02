@@ -1,0 +1,20 @@
+package com.adnlv.guesswhat.data
+
+import com.adnlv.guesswhat.data.mapper.toDomain
+import com.adnlv.guesswhat.data.remote.NewsApi
+import com.adnlv.guesswhat.model.Article
+
+class NewsRepository(private val newsApi: NewsApi) {
+
+    suspend fun getTopHeadlines(country: String = "ua", category: String? = null): Result<List<Article>> = runCatching {
+        val response = newsApi.getTopHeadlines(
+            country = country,
+            category = category
+        )
+        if (response.status != "ok") {
+            val message = response.message ?: "Failed to fetch news"
+            throw IllegalStateException(message)
+        }
+        response.articles.toDomain()
+    }
+}
