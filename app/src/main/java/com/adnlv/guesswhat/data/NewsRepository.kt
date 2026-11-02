@@ -6,7 +6,7 @@ import com.adnlv.guesswhat.model.Article
 
 class NewsRepository(private val newsApi: NewsApi) {
 
-    suspend fun getTopHeadlines(country: String = "ua", category: String? = null): Result<List<Article>> = runCatching {
+    suspend fun getTopHeadlines(country: String = "us", category: String? = null): Result<List<Article>> = runCatching {
         val response = newsApi.getTopHeadlines(
             country = country,
             category = category

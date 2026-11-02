@@ -41,7 +41,7 @@ class NewsRepositoryTest {
         )
         val repository = NewsRepository(fakeApi)
 
-        val result = repository.getTopHeadlines(country = "ua")
+        val result = repository.getTopHeadlines()
 
         assertTrue(result.isSuccess)
         val articles = result.getOrNull()
@@ -60,7 +60,7 @@ class NewsRepositoryTest {
         )
         val repository = NewsRepository(fakeApi)
 
-        val result = repository.getTopHeadlines(country = "ua")
+        val result = repository.getTopHeadlines()
 
         assertTrue(result.isFailure)
         assertEquals("Your API key is invalid.", result.exceptionOrNull()?.message)
@@ -73,7 +73,7 @@ class NewsRepositoryTest {
         )
         val repository = NewsRepository(fakeApi)
 
-        val result = repository.getTopHeadlines(country = "ua")
+        val result = repository.getTopHeadlines()
 
         assertTrue(result.isFailure)
         assertEquals("No network connection", result.exceptionOrNull()?.message)
