@@ -9,9 +9,9 @@ import com.adnlv.guesswhat.R
 
 enum class NavDestination(
     val route: String,
-    @StringRes val labelRes: Int,
+    @param:StringRes val labelRes: Int,
     val icon: ImageVector,
-    @StringRes val contentDescriptionRes: Int
+    @param:StringRes val contentDescriptionRes: Int
 ) {
     Home(
         route = "home",
