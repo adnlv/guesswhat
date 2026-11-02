@@ -1,34 +1,183 @@
 package com.adnlv.guesswhat.ui.home
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.adnlv.guesswhat.R
+import com.adnlv.guesswhat.model.Article
 import com.adnlv.guesswhat.ui.theme.GuessWhatTheme
 
 @Composable
-fun HomeScreen(modifier: Modifier = Modifier) {
+fun HomeScreen(viewModel: HomeViewModel?, modifier: Modifier = Modifier) {
+    if (viewModel != null) {
+        val uiState by viewModel.uiState.collectAsState()
+        HomeScreenContent(
+            uiState = uiState,
+            onRetry = viewModel::loadNews,
+            modifier = modifier
+        )
+    } else {
+        HomeScreenContent(
+            uiState = HomeUiState.Loading,
+            onRetry = {},
+            modifier = modifier
+        )
+    }
+}
+
+@Composable
+fun HomeScreenContent(uiState: HomeUiState, onRetry: () -> Unit, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = stringResource(R.string.home_screen_title),
-            style = MaterialTheme.typography.headlineMedium
+        when (uiState) {
+            is HomeUiState.Loading -> {
+                CircularProgressIndicator()
+            }
+            is HomeUiState.Error -> {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = uiState.message,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = onRetry) {
+                        Text(text = stringResource(R.string.retry_button))
+                    }
+                }
+            }
+            is HomeUiState.Success -> {
+                if (uiState.articles.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.empty_news),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(
+                            items = uiState.articles,
+                            key = { it.url }
+                        ) { article ->
+                            ArticleCard(article = article)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ArticleCard(article: Article, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = article.sourceName,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = article.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (article.description.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = article.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun HomeScreenSuccessPreview() {
+    GuessWhatTheme {
+        HomeScreenContent(
+            uiState = HomeUiState.Success(
+                articles = listOf(
+                    Article(
+                        title = "Sample News Headline from Ukraine",
+                        description = "This is a brief preview description for the news card.",
+                        url = "https://example.com/1",
+                        imageUrl = null,
+                        sourceName = "Kyiv Post",
+                        publishedAt = "2026-11-02T18:00:00Z"
+                    )
+                )
+            ),
+            onRetry = {}
         )
     }
 }
 
 @Preview(showBackground = true)
 @Composable
-private fun HomeScreenPreview() {
+private fun HomeScreenLoadingPreview() {
     GuessWhatTheme {
-        HomeScreen()
+        HomeScreenContent(
+            uiState = HomeUiState.Loading,
+            onRetry = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun HomeScreenErrorPreview() {
+    GuessWhatTheme {
+        HomeScreenContent(
+            uiState = HomeUiState.Error("Failed to fetch news"),
+            onRetry = {}
+        )
     }
 }
