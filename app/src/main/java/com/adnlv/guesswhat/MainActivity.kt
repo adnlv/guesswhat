@@ -10,6 +10,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -56,5 +57,13 @@ fun MainApp(navController: NavHostController = rememberNavController()) {
             navController = navController,
             modifier = Modifier.padding(innerPadding)
         )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun MainAppPreview() {
+    GuessWhatTheme {
+        MainApp()
     }
 }

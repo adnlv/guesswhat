@@ -8,7 +8,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import com.adnlv.guesswhat.R
+import com.adnlv.guesswhat.ui.theme.GuessWhatTheme
 
 @Composable
 fun CategoriesScreen(modifier: Modifier = Modifier) {
@@ -20,5 +22,13 @@ fun CategoriesScreen(modifier: Modifier = Modifier) {
             text = stringResource(R.string.categories_screen_title),
             style = MaterialTheme.typography.headlineMedium
         )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun CategoriesScreenPreview() {
+    GuessWhatTheme {
+        CategoriesScreen()
     }
 }
