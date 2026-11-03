@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
@@ -27,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -34,31 +34,48 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.paging.LoadState
+import androidx.paging.LoadStates
+import androidx.paging.PagingData
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
 import com.adnlv.guesswhat.R
 import com.adnlv.guesswhat.model.Article
 import com.adnlv.guesswhat.ui.components.ArticleCard
 import com.adnlv.guesswhat.ui.theme.GuessWhatTheme
+import kotlinx.coroutines.flow.flowOf
 
 @Composable
 fun HomeScreen(viewModel: HomeViewModel?, modifier: Modifier = Modifier) {
     if (viewModel != null) {
-        val uiState by viewModel.uiState.collectAsState()
+        val articles = viewModel.articles.collectAsLazyPagingItems()
         val searchQuery by viewModel.searchQuery.collectAsState()
         HomeScreenContent(
-            uiState = uiState,
+            articles = articles,
             searchQuery = searchQuery,
             onQueryChange = viewModel::onSearchQueryChange,
             onClearQuery = viewModel::clearSearchQuery,
-            onRetry = viewModel::retry,
             modifier = modifier
         )
     } else {
+        val loadingArticles = remember {
+            flowOf(
+                PagingData.from(
+                    data = emptyList<Article>(),
+                    sourceLoadStates = LoadStates(
+                        refresh = LoadState.Loading,
+                        prepend = LoadState.NotLoading(endOfPaginationReached = true),
+                        append = LoadState.NotLoading(endOfPaginationReached = true)
+                    )
+                )
+            )
+        }.collectAsLazyPagingItems()
         HomeScreenContent(
-            uiState = HomeUiState.Loading,
+            articles = loadingArticles,
             searchQuery = "",
             onQueryChange = {},
             onClearQuery = {},
-            onRetry = {},
             modifier = modifier
         )
     }
@@ -67,11 +84,10 @@ fun HomeScreen(viewModel: HomeViewModel?, modifier: Modifier = Modifier) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreenContent(
-    uiState: HomeUiState,
+    articles: LazyPagingItems<Article>,
     searchQuery: String,
     onQueryChange: (String) -> Unit,
     onClearQuery: () -> Unit,
-    onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -113,16 +129,14 @@ fun HomeScreenContent(
                 .padding(horizontal = if (expanded) 0.dp else 16.dp, vertical = 8.dp)
         ) {
             NewsListContent(
-                uiState = uiState,
-                onRetry = onRetry,
+                articles = articles,
                 modifier = Modifier.fillMaxSize()
             )
         }
 
         if (!expanded) {
             NewsListContent(
-                uiState = uiState,
-                onRetry = onRetry,
+                articles = articles,
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
@@ -132,51 +146,93 @@ fun HomeScreenContent(
 }
 
 @Composable
-fun NewsListContent(uiState: HomeUiState, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+fun NewsListContent(articles: LazyPagingItems<Article>, modifier: Modifier = Modifier) {
+    val refreshState = articles.loadState.refresh
+    val appendState = articles.loadState.append
+
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
-        when (uiState) {
-            is HomeUiState.Loading -> {
-                CircularProgressIndicator()
-            }
-            is HomeUiState.Error -> {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        text = uiState.message,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = onRetry) {
-                        Text(text = stringResource(R.string.retry_button))
+        if (articles.itemCount == 0) {
+            when (refreshState) {
+                is LoadState.Loading -> {
+                    CircularProgressIndicator()
+                }
+                is LoadState.Error -> {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = refreshState.error.message ?: stringResource(R.string.empty_news),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = { articles.retry() }) {
+                            Text(text = stringResource(R.string.retry_button))
+                        }
                     }
                 }
-            }
-            is HomeUiState.Success -> {
-                if (uiState.articles.isEmpty()) {
+                is LoadState.NotLoading -> {
                     Text(
                         text = stringResource(R.string.empty_news),
                         style = MaterialTheme.typography.bodyLarge
                     )
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(
-                            items = uiState.articles,
-                            key = { it.url }
-                        ) { article ->
-                            ArticleCard(article = article)
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(
+                    count = articles.itemCount,
+                    key = articles.itemKey { it.url }
+                ) { index ->
+                    val article = articles[index]
+                    if (article != null) {
+                        ArticleCard(article = article)
+                    }
+                }
+
+                when (appendState) {
+                    is LoadState.Loading -> {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
                         }
                     }
+                    is LoadState.Error -> {
+                        item {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = appendState.error.message ?: stringResource(R.string.empty_news),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(onClick = { articles.retry() }) {
+                                    Text(text = stringResource(R.string.retry_button))
+                                }
+                            }
+                        }
+                    }
+                    is LoadState.NotLoading -> Unit
                 }
             }
         }
@@ -187,23 +243,32 @@ fun NewsListContent(uiState: HomeUiState, onRetry: () -> Unit, modifier: Modifie
 @Composable
 private fun HomeScreenSuccessPreview() {
     GuessWhatTheme {
-        HomeScreenContent(
-            uiState = HomeUiState.Success(
-                articles = listOf(
-                    Article(
-                        title = "Sample News Headline from Ukraine",
-                        description = "This is a brief preview description for the news card.",
-                        url = "https://example.com/1",
-                        imageUrl = null,
-                        sourceName = "Kyiv Post",
-                        publishedAt = "2026-11-02T18:00:00Z"
+        val articles = remember {
+            flowOf(
+                PagingData.from(
+                    data = listOf(
+                        Article(
+                            title = "Sample News Headline from Ukraine",
+                            description = "This is a brief preview description for the news card.",
+                            url = "https://example.com/1",
+                            imageUrl = null,
+                            sourceName = "Kyiv Post",
+                            publishedAt = "2026-11-02T18:00:00Z"
+                        )
+                    ),
+                    sourceLoadStates = LoadStates(
+                        refresh = LoadState.NotLoading(endOfPaginationReached = true),
+                        prepend = LoadState.NotLoading(endOfPaginationReached = true),
+                        append = LoadState.NotLoading(endOfPaginationReached = true)
                     )
                 )
-            ),
+            )
+        }.collectAsLazyPagingItems()
+        HomeScreenContent(
+            articles = articles,
             searchQuery = "",
             onQueryChange = {},
-            onClearQuery = {},
-            onRetry = {}
+            onClearQuery = {}
         )
     }
 }
@@ -212,12 +277,23 @@ private fun HomeScreenSuccessPreview() {
 @Composable
 private fun HomeScreenLoadingPreview() {
     GuessWhatTheme {
+        val articles = remember {
+            flowOf(
+                PagingData.from(
+                    data = emptyList<Article>(),
+                    sourceLoadStates = LoadStates(
+                        refresh = LoadState.Loading,
+                        prepend = LoadState.NotLoading(endOfPaginationReached = true),
+                        append = LoadState.NotLoading(endOfPaginationReached = true)
+                    )
+                )
+            )
+        }.collectAsLazyPagingItems()
         HomeScreenContent(
-            uiState = HomeUiState.Loading,
+            articles = articles,
             searchQuery = "",
             onQueryChange = {},
-            onClearQuery = {},
-            onRetry = {}
+            onClearQuery = {}
         )
     }
 }
@@ -226,12 +302,23 @@ private fun HomeScreenLoadingPreview() {
 @Composable
 private fun HomeScreenErrorPreview() {
     GuessWhatTheme {
+        val articles = remember {
+            flowOf(
+                PagingData.from(
+                    data = emptyList<Article>(),
+                    sourceLoadStates = LoadStates(
+                        refresh = LoadState.Error(IllegalStateException("Failed to fetch news")),
+                        prepend = LoadState.NotLoading(endOfPaginationReached = true),
+                        append = LoadState.NotLoading(endOfPaginationReached = true)
+                    )
+                )
+            )
+        }.collectAsLazyPagingItems()
         HomeScreenContent(
-            uiState = HomeUiState.Error("Failed to fetch news"),
+            articles = articles,
             searchQuery = "",
             onQueryChange = {},
-            onClearQuery = {},
-            onRetry = {}
+            onClearQuery = {}
         )
     }
 }
