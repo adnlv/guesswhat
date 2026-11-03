@@ -1,7 +1,9 @@
 package com.adnlv.guesswhat
 
 import android.content.Context
+import androidx.room.Room
 import com.adnlv.guesswhat.data.NewsRepository
+import com.adnlv.guesswhat.data.local.NewsDatabase
 import com.adnlv.guesswhat.data.remote.AuthInterceptor
 import com.adnlv.guesswhat.data.remote.NewsApi
 import kotlinx.serialization.json.Json
@@ -50,7 +52,15 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         retrofit.create(NewsApi::class.java)
     }
 
+    private val database: NewsDatabase by lazy {
+        Room.databaseBuilder(
+            context.applicationContext,
+            NewsDatabase::class.java,
+            "news_database"
+        ).build()
+    }
+
     override val newsRepository: NewsRepository by lazy {
-        NewsRepository(newsApi)
+        NewsRepository(newsApi, database.articleDao())
     }
 }
