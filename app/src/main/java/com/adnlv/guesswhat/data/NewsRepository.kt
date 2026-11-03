@@ -17,4 +17,17 @@ class NewsRepository(private val newsApi: NewsApi) {
         }
         response.articles.toDomain()
     }
+
+    suspend fun searchNews(query: String): Result<List<Article>> = runCatching {
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isEmpty()) {
+            return getTopHeadlines()
+        }
+        val response = newsApi.searchNews(query = trimmedQuery)
+        if (response.status != "ok") {
+            val message = response.message ?: "Failed to search news"
+            throw IllegalStateException(message)
+        }
+        response.articles.toDomain()
+    }
 }

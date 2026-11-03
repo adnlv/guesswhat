@@ -13,4 +13,12 @@ interface NewsApi {
         @Query("page") page: Int? = null,
         @Query("pageSize") pageSize: Int? = null
     ): NewsResponseDto
+
+    @GET("everything")
+    suspend fun searchNews(
+        @Query("q") query: String,
+        @Query("language") language: String? = null,
+        @Query("page") page: Int? = null,
+        @Query("pageSize") pageSize: Int? = null
+    ): NewsResponseDto
 }
