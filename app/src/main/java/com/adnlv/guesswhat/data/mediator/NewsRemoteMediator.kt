@@ -102,19 +102,21 @@ class NewsRemoteMediator(
                         articleDao.deleteSearchArticles(query = normalizedQuery)
                     }
                 }
-                val prevKey = if (page == STARTING_PAGE_INDEX) null else page - 1
-                val nextKey = if (endOfPaginationReached) null else page + 1
-                val keys = entities.map { article ->
-                    RemoteKeys(
-                        articleUrl = article.url,
-                        prevKey = prevKey,
-                        nextKey = nextKey,
-                        category = if (normalizedQuery == null) category else null,
-                        searchQuery = normalizedQuery
-                    )
+                if (entities.isNotEmpty()) {
+                    val prevKey = if (page == STARTING_PAGE_INDEX) null else page - 1
+                    val nextKey = if (endOfPaginationReached) null else page + 1
+                    val keys = entities.map { article ->
+                        RemoteKeys(
+                            articleUrl = article.url,
+                            prevKey = prevKey,
+                            nextKey = nextKey,
+                            category = if (normalizedQuery == null) category else null,
+                            searchQuery = normalizedQuery
+                        )
+                    }
+                    remoteKeysDao.insertAll(keys)
+                    articleDao.insertArticles(entities)
                 }
-                remoteKeysDao.insertAll(keys)
-                articleDao.insertArticles(entities)
             }
 
             MediatorResult.Success(endOfPaginationReached = endOfPaginationReached)

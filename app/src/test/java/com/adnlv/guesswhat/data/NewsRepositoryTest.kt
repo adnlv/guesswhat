@@ -2,8 +2,11 @@ package com.adnlv.guesswhat.data
 
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
+import androidx.paging.testing.asSnapshot
 import com.adnlv.guesswhat.data.local.ArticleDao
 import com.adnlv.guesswhat.data.local.ArticleEntity
+import com.adnlv.guesswhat.data.local.RemoteKeys
+import com.adnlv.guesswhat.data.local.RemoteKeysDao
 import com.adnlv.guesswhat.data.remote.NewsApi
 import com.adnlv.guesswhat.data.remote.dto.ArticleDto
 import com.adnlv.guesswhat.data.remote.dto.NewsResponseDto
@@ -32,12 +35,18 @@ class NewsRepositoryTest {
             getTopHeadlinesCalled = true
             lastCategory = category
             exceptionToThrow?.let { throw it }
+            if (page != null && page > 1) {
+                return NewsResponseDto(status = "ok", totalResults = 0, articles = emptyList())
+            }
             return responseToReturn ?: NewsResponseDto(status = "ok")
         }
 
         override suspend fun searchNews(query: String, language: String?, page: Int?, pageSize: Int?): NewsResponseDto {
             lastSearchQuery = query
             exceptionToThrow?.let { throw it }
+            if (page != null && page > 1) {
+                return NewsResponseDto(status = "ok", totalResults = 0, articles = emptyList())
+            }
             return responseToReturn ?: NewsResponseDto(status = "ok")
         }
     }
@@ -76,20 +85,26 @@ class NewsRepositoryTest {
         }
 
         override suspend fun insertArticles(articles: List<ArticleEntity>) {
-            articles.forEach { this.articles[it.url] = it }
-            currentPagingSource?.invalidate()
+            if (articles.isNotEmpty()) {
+                articles.forEach { this.articles[it.url] = it }
+                currentPagingSource?.invalidate()
+            }
         }
 
         override suspend fun deleteHeadlines(category: String?) {
             val urlsToRemove = getHeadlines(category).map { it.url }
-            urlsToRemove.forEach { articles.remove(it) }
-            currentPagingSource?.invalidate()
+            if (urlsToRemove.isNotEmpty()) {
+                urlsToRemove.forEach { articles.remove(it) }
+                currentPagingSource?.invalidate()
+            }
         }
 
         override suspend fun deleteSearchArticles(query: String) {
             val urlsToRemove = articles.values.filter { it.searchQuery == query }.map { it.url }
-            urlsToRemove.forEach { articles.remove(it) }
-            currentPagingSource?.invalidate()
+            if (urlsToRemove.isNotEmpty()) {
+                urlsToRemove.forEach { articles.remove(it) }
+                currentPagingSource?.invalidate()
+            }
         }
 
         private fun createPagingSource(itemsProvider: () -> List<ArticleEntity>): PagingSource<Int, ArticleEntity> =
@@ -102,6 +117,29 @@ class NewsRepositoryTest {
                     nextKey = null
                 )
             }.also { currentPagingSource = it }
+    }
+
+    private class FakeRemoteKeysDao : RemoteKeysDao {
+        private val keys = LinkedHashMap<String, RemoteKeys>()
+
+        override suspend fun insertAll(remoteKey: List<RemoteKeys>) {
+            remoteKey.forEach { keys[it.articleUrl] = it }
+        }
+
+        override suspend fun getRemoteKeys(url: String): RemoteKeys? = keys[url]
+
+        override suspend fun deleteHeadlinesKeys(category: String?) {
+            val urlsToRemove = keys.values.filter {
+                (category == null && it.category == null && it.searchQuery == null) ||
+                    (it.category == category && it.searchQuery == null)
+            }.map { it.articleUrl }
+            urlsToRemove.forEach { keys.remove(it) }
+        }
+
+        override suspend fun deleteSearchKeys(query: String) {
+            val urlsToRemove = keys.values.filter { it.searchQuery == query }.map { it.articleUrl }
+            urlsToRemove.forEach { keys.remove(it) }
+        }
     }
 
     @Test
@@ -302,5 +340,55 @@ class NewsRepositoryTest {
         val articles = result.getOrNull()
         assertEquals(1, articles?.size)
         assertEquals("Android Room Guide", articles?.first()?.title)
+    }
+
+    @Test
+    fun getTopHeadlinesStream_fetchesAndEmitsPagedArticles() = runBlocking {
+        val fakeApi = FakeNewsApi(
+            responseToReturn = NewsResponseDto(
+                status = "ok",
+                totalResults = 1,
+                articles = listOf(
+                    ArticleDto(
+                        title = "Paged Headline",
+                        url = "https://example.com/paged-1"
+                    )
+                )
+            )
+        )
+        val fakeDao = FakeArticleDao()
+        val fakeKeysDao = FakeRemoteKeysDao()
+        val repository = NewsRepository(fakeApi, fakeDao, fakeKeysDao)
+
+        val snapshot = repository.getTopHeadlinesStream(category = "technology").asSnapshot()
+
+        assertEquals(1, snapshot.size)
+        assertEquals("Paged Headline", snapshot.first().title)
+        assertEquals("technology", fakeApi.lastCategory)
+    }
+
+    @Test
+    fun searchNewsStream_withQuery_fetchesAndEmitsPagedSearchResults() = runBlocking {
+        val fakeApi = FakeNewsApi(
+            responseToReturn = NewsResponseDto(
+                status = "ok",
+                totalResults = 1,
+                articles = listOf(
+                    ArticleDto(
+                        title = "Paging 3 Compose Guide",
+                        url = "https://example.com/paging-compose"
+                    )
+                )
+            )
+        )
+        val fakeDao = FakeArticleDao()
+        val fakeKeysDao = FakeRemoteKeysDao()
+        val repository = NewsRepository(fakeApi, fakeDao, fakeKeysDao)
+
+        val snapshot = repository.searchNewsStream("  Compose  ").asSnapshot()
+
+        assertEquals(1, snapshot.size)
+        assertEquals("Paging 3 Compose Guide", snapshot.first().title)
+        assertEquals("Compose", fakeApi.lastSearchQuery)
     }
 }

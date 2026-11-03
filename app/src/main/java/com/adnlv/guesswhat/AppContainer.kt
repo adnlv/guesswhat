@@ -57,10 +57,12 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             context.applicationContext,
             NewsDatabase::class.java,
             "news_database"
-        ).build()
+        )
+            .fallbackToDestructiveMigration(dropAllTables = true)
+            .build()
     }
 
     override val newsRepository: NewsRepository by lazy {
-        NewsRepository(newsApi, database.articleDao())
+        NewsRepository(newsApi, database)
     }
 }
