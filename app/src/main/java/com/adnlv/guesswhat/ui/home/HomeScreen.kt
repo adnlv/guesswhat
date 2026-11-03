@@ -11,15 +11,26 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SearchBar
+import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -35,24 +46,98 @@ import com.adnlv.guesswhat.ui.theme.GuessWhatTheme
 fun HomeScreen(viewModel: HomeViewModel?, modifier: Modifier = Modifier) {
     if (viewModel != null) {
         val uiState by viewModel.uiState.collectAsState()
+        val searchQuery by viewModel.searchQuery.collectAsState()
         HomeScreenContent(
             uiState = uiState,
-            onRetry = viewModel::loadNews,
+            searchQuery = searchQuery,
+            onQueryChange = viewModel::onSearchQueryChange,
+            onClearQuery = viewModel::clearSearchQuery,
+            onRetry = viewModel::retry,
             modifier = modifier
         )
     } else {
         HomeScreenContent(
             uiState = HomeUiState.Loading,
+            searchQuery = "",
+            onQueryChange = {},
+            onClearQuery = {},
             onRetry = {},
             modifier = modifier
         )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreenContent(uiState: HomeUiState, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+fun HomeScreenContent(
+    uiState: HomeUiState,
+    searchQuery: String,
+    onQueryChange: (String) -> Unit,
+    onClearQuery: () -> Unit,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+
+    Column(modifier = modifier.fillMaxSize()) {
+        SearchBar(
+            inputField = {
+                SearchBarDefaults.InputField(
+                    query = searchQuery,
+                    onQueryChange = onQueryChange,
+                    onSearch = { expanded = false },
+                    expanded = expanded,
+                    onExpandedChange = { expanded = it },
+                    placeholder = {
+                        Text(text = stringResource(R.string.search_placeholder))
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = onClearQuery) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = stringResource(R.string.clear_search)
+                                )
+                            }
+                        }
+                    }
+                )
+            },
+            expanded = expanded,
+            onExpandedChange = { expanded = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = if (expanded) 0.dp else 16.dp, vertical = 8.dp)
+        ) {
+            NewsListContent(
+                uiState = uiState,
+                onRetry = onRetry,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        if (!expanded) {
+            NewsListContent(
+                uiState = uiState,
+                onRetry = onRetry,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+fun NewsListContent(uiState: HomeUiState, onRetry: () -> Unit, modifier: Modifier = Modifier) {
     Box(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
         when (uiState) {
@@ -155,6 +240,9 @@ private fun HomeScreenSuccessPreview() {
                     )
                 )
             ),
+            searchQuery = "",
+            onQueryChange = {},
+            onClearQuery = {},
             onRetry = {}
         )
     }
@@ -166,6 +254,9 @@ private fun HomeScreenLoadingPreview() {
     GuessWhatTheme {
         HomeScreenContent(
             uiState = HomeUiState.Loading,
+            searchQuery = "",
+            onQueryChange = {},
+            onClearQuery = {},
             onRetry = {}
         )
     }
@@ -177,6 +268,9 @@ private fun HomeScreenErrorPreview() {
     GuessWhatTheme {
         HomeScreenContent(
             uiState = HomeUiState.Error("Failed to fetch news"),
+            searchQuery = "",
+            onQueryChange = {},
+            onClearQuery = {},
             onRetry = {}
         )
     }
