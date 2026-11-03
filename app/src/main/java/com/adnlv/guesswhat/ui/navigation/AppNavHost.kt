@@ -10,6 +10,7 @@ import androidx.navigation.compose.composable
 import com.adnlv.guesswhat.AppContainer
 import com.adnlv.guesswhat.NewsApp
 import com.adnlv.guesswhat.ui.categories.CategoriesScreen
+import com.adnlv.guesswhat.ui.categories.CategoriesViewModel
 import com.adnlv.guesswhat.ui.home.HomeScreen
 import com.adnlv.guesswhat.ui.home.HomeViewModel
 
@@ -29,7 +30,12 @@ fun AppNavHost(navController: NavHostController, modifier: Modifier = Modifier, 
             HomeScreen(viewModel = viewModel)
         }
         composable(NavDestination.Categories.route) {
-            CategoriesScreen()
+            val context = LocalContext.current
+            val container = appContainer ?: (context.applicationContext as? NewsApp)?.container
+            val viewModel: CategoriesViewModel? = container?.let {
+                viewModel(factory = CategoriesViewModel.provideFactory(it.newsRepository))
+            }
+            CategoriesScreen(viewModel = viewModel)
         }
     }
 }
