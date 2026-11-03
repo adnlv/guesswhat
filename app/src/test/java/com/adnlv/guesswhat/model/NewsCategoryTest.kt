@@ -22,8 +22,8 @@ class NewsCategoryTest {
     }
 
     @Test
-    fun newsCategory_defaultCategoryIsTechnology() {
-        assertEquals(NewsCategory.TECHNOLOGY, NewsCategory.DEFAULT)
+    fun newsCategory_defaultCategoryIsBusiness() {
+        assertEquals(NewsCategory.BUSINESS, NewsCategory.DEFAULT)
     }
 
     @Test

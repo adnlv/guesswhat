@@ -199,7 +199,7 @@ private fun CategoriesScreenSuccessPreview() {
                     )
                 )
             ),
-            selectedCategory = NewsCategory.TECHNOLOGY,
+            selectedCategory = NewsCategory.BUSINESS,
             onCategorySelected = {},
             onRetry = {}
         )
@@ -212,7 +212,7 @@ private fun CategoriesScreenLoadingPreview() {
     GuessWhatTheme {
         CategoriesScreenContent(
             uiState = CategoriesUiState.Loading,
-            selectedCategory = NewsCategory.TECHNOLOGY,
+            selectedCategory = NewsCategory.BUSINESS,
             onCategorySelected = {},
             onRetry = {}
         )
@@ -225,7 +225,7 @@ private fun CategoriesScreenErrorPreview() {
     GuessWhatTheme {
         CategoriesScreenContent(
             uiState = CategoriesUiState.Error("Network connection lost"),
-            selectedCategory = NewsCategory.TECHNOLOGY,
+            selectedCategory = NewsCategory.BUSINESS,
             onCategorySelected = {},
             onRetry = {}
         )

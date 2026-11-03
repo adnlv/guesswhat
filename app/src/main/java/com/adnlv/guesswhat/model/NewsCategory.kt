@@ -14,6 +14,6 @@ enum class NewsCategory(val apiValue: String, @StringRes val titleRes: Int) {
     ;
 
     companion object {
-        val DEFAULT = TECHNOLOGY
+        val DEFAULT = BUSINESS
     }
 }
