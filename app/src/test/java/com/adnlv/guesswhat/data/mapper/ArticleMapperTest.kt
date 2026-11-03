@@ -1,5 +1,6 @@
 package com.adnlv.guesswhat.data.mapper
 
+import com.adnlv.guesswhat.data.local.ArticleEntity
 import com.adnlv.guesswhat.data.remote.dto.ArticleDto
 import com.adnlv.guesswhat.data.remote.dto.SourceDto
 import org.junit.Assert.assertEquals
@@ -86,5 +87,64 @@ class ArticleMapperTest {
         assertEquals(2, result.size)
         assertEquals("Valid 1", result[0].title)
         assertEquals("Valid 2", result[1].title)
+    }
+
+    @Test
+    fun toEntity_withValidDto_mapsAllFieldsAndDiscriminators() {
+        val dto = ArticleDto(
+            source = SourceDto(name = "Tech News"),
+            title = "Room Caching",
+            description = "SQLite storage",
+            url = "https://example.com/room",
+            urlToImage = "https://example.com/room.jpg",
+            publishedAt = "2026-11-03T08:00:00Z"
+        )
+
+        val entity = dto.toEntity(category = "technology", searchQuery = "room")
+
+        assertNotNull(entity)
+        assertEquals("https://example.com/room", entity?.url)
+        assertEquals("Room Caching", entity?.title)
+        assertEquals("SQLite storage", entity?.description)
+        assertEquals("https://example.com/room.jpg", entity?.imageUrl)
+        assertEquals("Tech News", entity?.sourceName)
+        assertEquals("2026-11-03T08:00:00Z", entity?.publishedAt)
+        assertEquals("technology", entity?.category)
+        assertEquals("room", entity?.searchQuery)
+    }
+
+    @Test
+    fun toEntity_withInvalidDto_returnsNull() {
+        val invalidDto = ArticleDto(
+            title = "[Removed]",
+            url = "https://example.com/removed"
+        )
+
+        assertNull(invalidDto.toEntity(category = "business"))
+    }
+
+    @Test
+    fun entityListToDomain_mapsAllEntities() {
+        val entities = listOf(
+            ArticleEntity(
+                url = "https://example.com/1",
+                title = "Cached Title",
+                description = "Cached Description",
+                imageUrl = "https://example.com/1.jpg",
+                sourceName = "Cached Source",
+                publishedAt = "2026-11-03T09:00:00Z",
+                category = "science"
+            )
+        )
+
+        val articles = entities.toDomain()
+
+        assertEquals(1, articles.size)
+        assertEquals("Cached Title", articles[0].title)
+        assertEquals("Cached Description", articles[0].description)
+        assertEquals("https://example.com/1", articles[0].url)
+        assertEquals("https://example.com/1.jpg", articles[0].imageUrl)
+        assertEquals("Cached Source", articles[0].sourceName)
+        assertEquals("2026-11-03T09:00:00Z", articles[0].publishedAt)
     }
 }
