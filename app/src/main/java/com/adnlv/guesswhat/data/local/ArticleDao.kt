@@ -1,5 +1,6 @@
 package com.adnlv.guesswhat.data.local
 
+import androidx.paging.PagingSource
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -7,6 +8,25 @@ import androidx.room.Query
 
 @Dao
 interface ArticleDao {
+    @Query(
+        """
+        SELECT * FROM articles
+        WHERE (:category IS NULL AND category IS NULL AND searchQuery IS NULL)
+        OR (category = :category AND searchQuery IS NULL)
+        """
+    )
+    fun getHeadlinesPagingSource(category: String?): PagingSource<Int, ArticleEntity>
+
+    @Query(
+        """
+        SELECT * FROM articles
+        WHERE searchQuery = :query
+        OR title LIKE '%' || :query || '%'
+        OR description LIKE '%' || :query || '%'
+        """
+    )
+    fun searchArticlesPagingSource(query: String): PagingSource<Int, ArticleEntity>
+
     @Query(
         """
         SELECT * FROM articles

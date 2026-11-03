@@ -1,5 +1,7 @@
 package com.adnlv.guesswhat.data
 
+import androidx.paging.PagingSource
+import androidx.paging.PagingState
 import com.adnlv.guesswhat.data.local.ArticleDao
 import com.adnlv.guesswhat.data.local.ArticleEntity
 import com.adnlv.guesswhat.data.remote.NewsApi
@@ -44,6 +46,23 @@ class NewsRepositoryTest {
         private val articles = LinkedHashMap<String, ArticleEntity>().apply {
             initialArticles.forEach { put(it.url, it) }
         }
+        private var currentPagingSource: PagingSource<Int, ArticleEntity>? = null
+
+        override fun getHeadlinesPagingSource(category: String?): PagingSource<Int, ArticleEntity> =
+            createPagingSource {
+                articles.values.filter {
+                    (category == null && it.category == null && it.searchQuery == null) ||
+                        (it.category == category && it.searchQuery == null)
+                }
+            }
+
+        override fun searchArticlesPagingSource(query: String): PagingSource<Int, ArticleEntity> = createPagingSource {
+            articles.values.filter {
+                it.searchQuery == query ||
+                    it.title.contains(query, ignoreCase = true) ||
+                    it.description.contains(query, ignoreCase = true)
+            }
+        }
 
         override suspend fun getHeadlines(category: String?): List<ArticleEntity> = articles.values.filter {
             (category == null && it.category == null && it.searchQuery == null) ||
@@ -58,17 +77,31 @@ class NewsRepositoryTest {
 
         override suspend fun insertArticles(articles: List<ArticleEntity>) {
             articles.forEach { this.articles[it.url] = it }
+            currentPagingSource?.invalidate()
         }
 
         override suspend fun deleteHeadlines(category: String?) {
             val urlsToRemove = getHeadlines(category).map { it.url }
             urlsToRemove.forEach { articles.remove(it) }
+            currentPagingSource?.invalidate()
         }
 
         override suspend fun deleteSearchArticles(query: String) {
             val urlsToRemove = articles.values.filter { it.searchQuery == query }.map { it.url }
             urlsToRemove.forEach { articles.remove(it) }
+            currentPagingSource?.invalidate()
         }
+
+        private fun createPagingSource(itemsProvider: () -> List<ArticleEntity>): PagingSource<Int, ArticleEntity> =
+            object : PagingSource<Int, ArticleEntity>() {
+                override fun getRefreshKey(state: PagingState<Int, ArticleEntity>): Int? = null
+
+                override suspend fun load(params: LoadParams<Int>): LoadResult<Int, ArticleEntity> = LoadResult.Page(
+                    data = itemsProvider(),
+                    prevKey = null,
+                    nextKey = null
+                )
+            }.also { currentPagingSource = it }
     }
 
     @Test
