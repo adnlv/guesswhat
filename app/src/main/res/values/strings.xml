@@ -7,4 +7,6 @@
     <string name="retry_button">Retry</string>
     <string name="empty_news">No articles found</string>
     <string name="news_loading">Loading news…</string>
+    <string name="search_placeholder">Search news…</string>
+    <string name="clear_search">Clear search</string>
 </resources>
