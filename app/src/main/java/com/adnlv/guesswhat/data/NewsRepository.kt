@@ -11,11 +11,9 @@ import com.adnlv.guesswhat.data.local.NewsDatabase
 import com.adnlv.guesswhat.data.local.RemoteKeys
 import com.adnlv.guesswhat.data.local.RemoteKeysDao
 import com.adnlv.guesswhat.data.mapper.toDomain
-import com.adnlv.guesswhat.data.mapper.toEntity
 import com.adnlv.guesswhat.data.mediator.NewsRemoteMediator
 import com.adnlv.guesswhat.data.remote.NewsApi
 import com.adnlv.guesswhat.model.Article
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -83,58 +81,6 @@ class NewsRepository(
             }
         ).flow.map { pagingData ->
             pagingData.map { entity -> entity.toDomain() }
-        }
-    }
-
-    suspend fun getTopHeadlines(country: String = "us", category: String? = null): Result<List<Article>> = try {
-        val response = newsApi.getTopHeadlines(
-            country = country,
-            category = category
-        )
-        if (response.status != "ok") {
-            val message = response.message ?: "Failed to fetch news"
-            throw IllegalStateException(message)
-        }
-        val entities = response.articles.toEntity(category = category)
-        articleDao.deleteHeadlines(category = category)
-        articleDao.insertArticles(entities)
-        Result.success(articleDao.getHeadlines(category = category).toDomain())
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Throwable) {
-        val cached = articleDao.getHeadlines(category = category).toDomain()
-        if (cached.isNotEmpty()) {
-            Result.success(cached)
-        } else {
-            Result.failure(e)
-        }
-    }
-
-    suspend fun searchNews(query: String): Result<List<Article>> {
-        val trimmedQuery = query.trim()
-        if (trimmedQuery.isEmpty()) {
-            return getTopHeadlines()
-        }
-        val normalizedQuery = trimmedQuery.lowercase()
-        return try {
-            val response = newsApi.searchNews(query = trimmedQuery)
-            if (response.status != "ok") {
-                val message = response.message ?: "Failed to search news"
-                throw IllegalStateException(message)
-            }
-            val entities = response.articles.toEntity(searchQuery = normalizedQuery)
-            articleDao.deleteSearchArticles(query = normalizedQuery)
-            articleDao.insertArticles(entities)
-            Result.success(articleDao.searchArticles(query = normalizedQuery).toDomain())
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            val cached = articleDao.searchArticles(query = normalizedQuery).toDomain()
-            if (cached.isNotEmpty()) {
-                Result.success(cached)
-            } else {
-                Result.failure(e)
-            }
         }
     }
 

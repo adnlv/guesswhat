@@ -10,7 +10,6 @@ import com.adnlv.guesswhat.data.local.RemoteKeysDao
 import com.adnlv.guesswhat.data.remote.NewsApi
 import com.adnlv.guesswhat.data.remote.dto.ArticleDto
 import com.adnlv.guesswhat.data.remote.dto.NewsResponseDto
-import java.io.IOException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -143,7 +142,7 @@ class NewsRepositoryTest {
     }
 
     @Test
-    fun getTopHeadlines_onSuccess_cachesAndReturnsMappedArticles() = runBlocking {
+    fun getTopHeadlinesStream_onSuccess_cachesAndEmitsMappedArticles() = runBlocking {
         val fakeApi = FakeNewsApi(
             responseToReturn = NewsResponseDto(
                 status = "ok",
@@ -157,88 +156,32 @@ class NewsRepositoryTest {
             )
         )
         val fakeDao = FakeArticleDao()
-        val repository = NewsRepository(fakeApi, fakeDao)
+        val fakeKeysDao = FakeRemoteKeysDao()
+        val repository = NewsRepository(fakeApi, fakeDao, fakeKeysDao)
 
-        val result = repository.getTopHeadlines()
+        val articles = repository.getTopHeadlinesStream().asSnapshot()
 
-        assertTrue(result.isSuccess)
-        val articles = result.getOrNull()
-        assertEquals(1, articles?.size)
-        assertEquals("Ukrainian Tech News", articles?.first()?.title)
+        assertEquals(1, articles.size)
+        assertEquals("Ukrainian Tech News", articles.first().title)
         assertEquals(1, fakeDao.getHeadlines(null).size)
     }
 
     @Test
-    fun getTopHeadlines_onErrorStatusWithoutCache_returnsFailure() = runBlocking {
-        val fakeApi = FakeNewsApi(
-            responseToReturn = NewsResponseDto(
-                status = "error",
-                code = "apiKeyInvalid",
-                message = "Your API key is invalid."
-            )
-        )
-        val repository = NewsRepository(fakeApi, FakeArticleDao())
-
-        val result = repository.getTopHeadlines()
-
-        assertTrue(result.isFailure)
-        assertEquals("Your API key is invalid.", result.exceptionOrNull()?.message)
-    }
-
-    @Test
-    fun getTopHeadlines_onNetworkExceptionWithoutCache_returnsFailure() = runBlocking {
-        val fakeApi = FakeNewsApi(
-            exceptionToThrow = IOException("No network connection")
-        )
-        val repository = NewsRepository(fakeApi, FakeArticleDao())
-
-        val result = repository.getTopHeadlines()
-
-        assertTrue(result.isFailure)
-        assertEquals("No network connection", result.exceptionOrNull()?.message)
-    }
-
-    @Test
-    fun getTopHeadlines_onNetworkExceptionWithCache_returnsCachedArticles() = runBlocking {
-        val cachedEntity = ArticleEntity(
-            url = "https://example.com/cached",
-            title = "Cached Headline",
-            description = "Offline content",
-            imageUrl = null,
-            sourceName = "Local Source",
-            publishedAt = "2026-11-03T06:00:00Z",
-            category = "business"
-        )
-        val fakeApi = FakeNewsApi(
-            exceptionToThrow = IOException("Offline")
-        )
-        val fakeDao = FakeArticleDao(listOf(cachedEntity))
-        val repository = NewsRepository(fakeApi, fakeDao)
-
-        val result = repository.getTopHeadlines(category = "business")
-
-        assertTrue(result.isSuccess)
-        val articles = result.getOrNull()
-        assertEquals(1, articles?.size)
-        assertEquals("Cached Headline", articles?.first()?.title)
-    }
-
-    @Test
-    fun getTopHeadlines_withCategory_passesCategoryToApi() = runBlocking {
+    fun getTopHeadlinesStream_withCategory_passesCategoryToApi() = runBlocking {
         val fakeApi = FakeNewsApi(
             responseToReturn = NewsResponseDto(status = "ok")
         )
-        val repository = NewsRepository(fakeApi, FakeArticleDao())
+        val repository = NewsRepository(fakeApi, FakeArticleDao(), FakeRemoteKeysDao())
 
-        val result = repository.getTopHeadlines(category = "technology")
+        val articles = repository.getTopHeadlinesStream(category = "technology").asSnapshot()
 
-        assertTrue(result.isSuccess)
+        assertTrue(articles.isEmpty())
         assertTrue(fakeApi.getTopHeadlinesCalled)
         assertEquals("technology", fakeApi.lastCategory)
     }
 
     @Test
-    fun searchNews_withQuery_cachesAndReturnsMatchingArticles() = runBlocking {
+    fun searchNewsStream_withQuery_cachesAndEmitsMatchingArticles() = runBlocking {
         val fakeApi = FakeNewsApi(
             responseToReturn = NewsResponseDto(
                 status = "ok",
@@ -252,20 +195,19 @@ class NewsRepositoryTest {
             )
         )
         val fakeDao = FakeArticleDao()
-        val repository = NewsRepository(fakeApi, fakeDao)
+        val fakeKeysDao = FakeRemoteKeysDao()
+        val repository = NewsRepository(fakeApi, fakeDao, fakeKeysDao)
 
-        val result = repository.searchNews("Kotlin")
+        val articles = repository.searchNewsStream("  Kotlin  ").asSnapshot()
 
-        assertTrue(result.isSuccess)
-        val articles = result.getOrNull()
-        assertEquals(1, articles?.size)
-        assertEquals("Kotlin 2.0 Released", articles?.first()?.title)
+        assertEquals(1, articles.size)
+        assertEquals("Kotlin 2.0 Released", articles.first().title)
         assertEquals("Kotlin", fakeApi.lastSearchQuery)
         assertEquals(1, fakeDao.searchArticles("kotlin").size)
     }
 
     @Test
-    fun searchNews_withBlankQuery_revertsToTopHeadlines() = runBlocking {
+    fun searchNewsStream_withBlankQuery_revertsToTopHeadlinesStream() = runBlocking {
         val fakeApi = FakeNewsApi(
             responseToReturn = NewsResponseDto(
                 status = "ok",
@@ -278,117 +220,12 @@ class NewsRepositoryTest {
                 )
             )
         )
-        val repository = NewsRepository(fakeApi, FakeArticleDao())
+        val repository = NewsRepository(fakeApi, FakeArticleDao(), FakeRemoteKeysDao())
 
-        val result = repository.searchNews("   ")
+        val articles = repository.searchNewsStream("   ").asSnapshot()
 
-        assertTrue(result.isSuccess)
+        assertEquals(1, articles.size)
         assertTrue(fakeApi.getTopHeadlinesCalled)
         assertEquals(null, fakeApi.lastSearchQuery)
-    }
-
-    @Test
-    fun searchNews_onErrorStatusWithoutCache_returnsFailure() = runBlocking {
-        val fakeApi = FakeNewsApi(
-            responseToReturn = NewsResponseDto(
-                status = "error",
-                code = "rateLimited",
-                message = "Too many requests"
-            )
-        )
-        val repository = NewsRepository(fakeApi, FakeArticleDao())
-
-        val result = repository.searchNews("Android")
-
-        assertTrue(result.isFailure)
-        assertEquals("Too many requests", result.exceptionOrNull()?.message)
-    }
-
-    @Test
-    fun searchNews_onNetworkExceptionWithoutCache_returnsFailure() = runBlocking {
-        val fakeApi = FakeNewsApi(
-            exceptionToThrow = IOException("Timeout")
-        )
-        val repository = NewsRepository(fakeApi, FakeArticleDao())
-
-        val result = repository.searchNews("Android")
-
-        assertTrue(result.isFailure)
-        assertEquals("Timeout", result.exceptionOrNull()?.message)
-    }
-
-    @Test
-    fun searchNews_onNetworkExceptionWithCache_returnsCachedSearchArticles() = runBlocking {
-        val cachedEntity = ArticleEntity(
-            url = "https://example.com/android-room",
-            title = "Android Room Guide",
-            description = "Learn Room persistence",
-            imageUrl = null,
-            sourceName = "Android Dev",
-            publishedAt = "2026-11-03T06:00:00Z",
-            searchQuery = "android"
-        )
-        val fakeApi = FakeNewsApi(
-            exceptionToThrow = IOException("Offline")
-        )
-        val fakeDao = FakeArticleDao(listOf(cachedEntity))
-        val repository = NewsRepository(fakeApi, fakeDao)
-
-        val result = repository.searchNews("Android")
-
-        assertTrue(result.isSuccess)
-        val articles = result.getOrNull()
-        assertEquals(1, articles?.size)
-        assertEquals("Android Room Guide", articles?.first()?.title)
-    }
-
-    @Test
-    fun getTopHeadlinesStream_fetchesAndEmitsPagedArticles() = runBlocking {
-        val fakeApi = FakeNewsApi(
-            responseToReturn = NewsResponseDto(
-                status = "ok",
-                totalResults = 1,
-                articles = listOf(
-                    ArticleDto(
-                        title = "Paged Headline",
-                        url = "https://example.com/paged-1"
-                    )
-                )
-            )
-        )
-        val fakeDao = FakeArticleDao()
-        val fakeKeysDao = FakeRemoteKeysDao()
-        val repository = NewsRepository(fakeApi, fakeDao, fakeKeysDao)
-
-        val snapshot = repository.getTopHeadlinesStream(category = "technology").asSnapshot()
-
-        assertEquals(1, snapshot.size)
-        assertEquals("Paged Headline", snapshot.first().title)
-        assertEquals("technology", fakeApi.lastCategory)
-    }
-
-    @Test
-    fun searchNewsStream_withQuery_fetchesAndEmitsPagedSearchResults() = runBlocking {
-        val fakeApi = FakeNewsApi(
-            responseToReturn = NewsResponseDto(
-                status = "ok",
-                totalResults = 1,
-                articles = listOf(
-                    ArticleDto(
-                        title = "Paging 3 Compose Guide",
-                        url = "https://example.com/paging-compose"
-                    )
-                )
-            )
-        )
-        val fakeDao = FakeArticleDao()
-        val fakeKeysDao = FakeRemoteKeysDao()
-        val repository = NewsRepository(fakeApi, fakeDao, fakeKeysDao)
-
-        val snapshot = repository.searchNewsStream("  Compose  ").asSnapshot()
-
-        assertEquals(1, snapshot.size)
-        assertEquals("Paging 3 Compose Guide", snapshot.first().title)
-        assertEquals("Compose", fakeApi.lastSearchQuery)
     }
 }

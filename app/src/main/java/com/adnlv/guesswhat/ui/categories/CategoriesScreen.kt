@@ -26,35 +26,53 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.paging.LoadState
+import androidx.paging.LoadStates
+import androidx.paging.PagingData
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
 import com.adnlv.guesswhat.R
 import com.adnlv.guesswhat.model.Article
 import com.adnlv.guesswhat.model.NewsCategory
 import com.adnlv.guesswhat.ui.components.ArticleCard
 import com.adnlv.guesswhat.ui.theme.GuessWhatTheme
+import kotlinx.coroutines.flow.flowOf
 
 @Composable
 fun CategoriesScreen(viewModel: CategoriesViewModel? = null, modifier: Modifier = Modifier) {
     if (viewModel != null) {
-        val uiState by viewModel.uiState.collectAsState()
+        val articles = viewModel.articles.collectAsLazyPagingItems()
         val selectedCategory by viewModel.selectedCategory.collectAsState()
         CategoriesScreenContent(
-            uiState = uiState,
+            articles = articles,
             selectedCategory = selectedCategory,
             onCategorySelected = viewModel::selectCategory,
-            onRetry = viewModel::retry,
             modifier = modifier
         )
     } else {
+        val loadingArticles = remember {
+            flowOf(
+                PagingData.from(
+                    data = emptyList<Article>(),
+                    sourceLoadStates = LoadStates(
+                        refresh = LoadState.Loading,
+                        prepend = LoadState.NotLoading(endOfPaginationReached = true),
+                        append = LoadState.NotLoading(endOfPaginationReached = true)
+                    )
+                )
+            )
+        }.collectAsLazyPagingItems()
         CategoriesScreenContent(
-            uiState = CategoriesUiState.Loading,
+            articles = loadingArticles,
             selectedCategory = NewsCategory.DEFAULT,
             onCategorySelected = {},
-            onRetry = {},
             modifier = modifier
         )
     }
@@ -62,10 +80,9 @@ fun CategoriesScreen(viewModel: CategoriesViewModel? = null, modifier: Modifier 
 
 @Composable
 fun CategoriesScreenContent(
-    uiState: CategoriesUiState,
+    articles: LazyPagingItems<Article>,
     selectedCategory: NewsCategory,
     onCategorySelected: (NewsCategory) -> Unit,
-    onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -82,8 +99,7 @@ fun CategoriesScreenContent(
         )
 
         CategoriesNewsListContent(
-            uiState = uiState,
-            onRetry = onRetry,
+            articles = articles,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
@@ -131,51 +147,93 @@ fun CategoryFilterChips(
 }
 
 @Composable
-fun CategoriesNewsListContent(uiState: CategoriesUiState, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+fun CategoriesNewsListContent(articles: LazyPagingItems<Article>, modifier: Modifier = Modifier) {
+    val refreshState = articles.loadState.refresh
+    val appendState = articles.loadState.append
+
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
-        when (uiState) {
-            is CategoriesUiState.Loading -> {
-                CircularProgressIndicator()
-            }
-            is CategoriesUiState.Error -> {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        text = uiState.message,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = onRetry) {
-                        Text(text = stringResource(R.string.retry_button))
+        if (articles.itemCount == 0) {
+            when (refreshState) {
+                is LoadState.Loading -> {
+                    CircularProgressIndicator()
+                }
+                is LoadState.Error -> {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = refreshState.error.message ?: stringResource(R.string.empty_news),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = { articles.retry() }) {
+                            Text(text = stringResource(R.string.retry_button))
+                        }
                     }
                 }
-            }
-            is CategoriesUiState.Success -> {
-                if (uiState.articles.isEmpty()) {
+                is LoadState.NotLoading -> {
                     Text(
                         text = stringResource(R.string.empty_news),
                         style = MaterialTheme.typography.bodyLarge
                     )
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(
-                            items = uiState.articles,
-                            key = { it.url }
-                        ) { article ->
-                            ArticleCard(article = article)
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(
+                    count = articles.itemCount,
+                    key = articles.itemKey { it.url }
+                ) { index ->
+                    val article = articles[index]
+                    if (article != null) {
+                        ArticleCard(article = article)
+                    }
+                }
+
+                when (appendState) {
+                    is LoadState.Loading -> {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
                         }
                     }
+                    is LoadState.Error -> {
+                        item {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = appendState.error.message ?: stringResource(R.string.empty_news),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(onClick = { articles.retry() }) {
+                                    Text(text = stringResource(R.string.retry_button))
+                                }
+                            }
+                        }
+                    }
+                    is LoadState.NotLoading -> Unit
                 }
             }
         }
@@ -186,22 +244,31 @@ fun CategoriesNewsListContent(uiState: CategoriesUiState, onRetry: () -> Unit, m
 @Composable
 private fun CategoriesScreenSuccessPreview() {
     GuessWhatTheme {
-        CategoriesScreenContent(
-            uiState = CategoriesUiState.Success(
-                articles = listOf(
-                    Article(
-                        title = "New AI Model Breakthrough",
-                        description = "Researchers demonstrate next generation reasoning system.",
-                        url = "https://example.com/tech-news",
-                        imageUrl = null,
-                        sourceName = "Tech World",
-                        publishedAt = "2026-11-03T05:00:00Z"
+        val articles = remember {
+            flowOf(
+                PagingData.from(
+                    data = listOf(
+                        Article(
+                            title = "New AI Model Breakthrough",
+                            description = "Researchers demonstrate next generation reasoning system.",
+                            url = "https://example.com/tech-news",
+                            imageUrl = null,
+                            sourceName = "Tech World",
+                            publishedAt = "2026-11-03T05:00:00Z"
+                        )
+                    ),
+                    sourceLoadStates = LoadStates(
+                        refresh = LoadState.NotLoading(endOfPaginationReached = true),
+                        prepend = LoadState.NotLoading(endOfPaginationReached = true),
+                        append = LoadState.NotLoading(endOfPaginationReached = true)
                     )
                 )
-            ),
+            )
+        }.collectAsLazyPagingItems()
+        CategoriesScreenContent(
+            articles = articles,
             selectedCategory = NewsCategory.BUSINESS,
-            onCategorySelected = {},
-            onRetry = {}
+            onCategorySelected = {}
         )
     }
 }
@@ -210,11 +277,22 @@ private fun CategoriesScreenSuccessPreview() {
 @Composable
 private fun CategoriesScreenLoadingPreview() {
     GuessWhatTheme {
+        val articles = remember {
+            flowOf(
+                PagingData.from(
+                    data = emptyList<Article>(),
+                    sourceLoadStates = LoadStates(
+                        refresh = LoadState.Loading,
+                        prepend = LoadState.NotLoading(endOfPaginationReached = true),
+                        append = LoadState.NotLoading(endOfPaginationReached = true)
+                    )
+                )
+            )
+        }.collectAsLazyPagingItems()
         CategoriesScreenContent(
-            uiState = CategoriesUiState.Loading,
+            articles = articles,
             selectedCategory = NewsCategory.BUSINESS,
-            onCategorySelected = {},
-            onRetry = {}
+            onCategorySelected = {}
         )
     }
 }
@@ -223,11 +301,22 @@ private fun CategoriesScreenLoadingPreview() {
 @Composable
 private fun CategoriesScreenErrorPreview() {
     GuessWhatTheme {
+        val articles = remember {
+            flowOf(
+                PagingData.from(
+                    data = emptyList<Article>(),
+                    sourceLoadStates = LoadStates(
+                        refresh = LoadState.Error(IllegalStateException("Network connection lost")),
+                        prepend = LoadState.NotLoading(endOfPaginationReached = true),
+                        append = LoadState.NotLoading(endOfPaginationReached = true)
+                    )
+                )
+            )
+        }.collectAsLazyPagingItems()
         CategoriesScreenContent(
-            uiState = CategoriesUiState.Error("Network connection lost"),
+            articles = articles,
             selectedCategory = NewsCategory.BUSINESS,
-            onCategorySelected = {},
-            onRetry = {}
+            onCategorySelected = {}
         )
     }
 }
