@@ -15,6 +15,7 @@ class NewsRepositoryTest {
         var responseToReturn: NewsResponseDto? = null,
         var exceptionToThrow: Throwable? = null,
         var lastSearchQuery: String? = null,
+        var lastCategory: String? = null,
         var getTopHeadlinesCalled: Boolean = false
     ) : NewsApi {
         override suspend fun getTopHeadlines(
@@ -25,6 +26,7 @@ class NewsRepositoryTest {
             pageSize: Int?
         ): NewsResponseDto {
             getTopHeadlinesCalled = true
+            lastCategory = category
             exceptionToThrow?.let { throw it }
             return responseToReturn ?: NewsResponseDto(status = "ok")
         }
@@ -88,6 +90,20 @@ class NewsRepositoryTest {
 
         assertTrue(result.isFailure)
         assertEquals("No network connection", result.exceptionOrNull()?.message)
+    }
+
+    @Test
+    fun getTopHeadlines_withCategory_passesCategoryToApi() = runBlocking {
+        val fakeApi = FakeNewsApi(
+            responseToReturn = NewsResponseDto(status = "ok")
+        )
+        val repository = NewsRepository(fakeApi)
+
+        val result = repository.getTopHeadlines(category = "technology")
+
+        assertTrue(result.isSuccess)
+        assertTrue(fakeApi.getTopHeadlinesCalled)
+        assertEquals("technology", fakeApi.lastCategory)
     }
 
     @Test
