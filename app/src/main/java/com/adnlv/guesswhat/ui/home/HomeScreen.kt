@@ -1,5 +1,6 @@
 package com.adnlv.guesswhat.ui.home
 
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,9 +32,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.paging.LoadState
 import androidx.paging.LoadStates
 import androidx.paging.PagingData
@@ -49,6 +52,7 @@ import kotlinx.coroutines.flow.flowOf
 @Composable
 fun HomeScreen(viewModel: HomeViewModel?, modifier: Modifier = Modifier) {
     if (viewModel != null) {
+        val context = LocalContext.current
         val articles = viewModel.articles.collectAsLazyPagingItems()
         val searchQuery by viewModel.searchQuery.collectAsState()
         HomeScreenContent(
@@ -56,6 +60,11 @@ fun HomeScreen(viewModel: HomeViewModel?, modifier: Modifier = Modifier) {
             searchQuery = searchQuery,
             onQueryChange = viewModel::onSearchQueryChange,
             onClearQuery = viewModel::clearSearchQuery,
+            onArticleClick = { url ->
+                CustomTabsIntent.Builder()
+                    .build()
+                    .launchUrl(context, url.toUri())
+            },
             modifier = modifier
         )
     } else {
@@ -76,6 +85,7 @@ fun HomeScreen(viewModel: HomeViewModel?, modifier: Modifier = Modifier) {
             searchQuery = "",
             onQueryChange = {},
             onClearQuery = {},
+            onArticleClick = {},
             modifier = modifier
         )
     }
@@ -88,6 +98,7 @@ fun HomeScreenContent(
     searchQuery: String,
     onQueryChange: (String) -> Unit,
     onClearQuery: () -> Unit,
+    onArticleClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -130,6 +141,7 @@ fun HomeScreenContent(
         ) {
             NewsListContent(
                 articles = articles,
+                onArticleClick = onArticleClick,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -137,6 +149,7 @@ fun HomeScreenContent(
         if (!expanded) {
             NewsListContent(
                 articles = articles,
+                onArticleClick = onArticleClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
@@ -146,7 +159,11 @@ fun HomeScreenContent(
 }
 
 @Composable
-fun NewsListContent(articles: LazyPagingItems<Article>, modifier: Modifier = Modifier) {
+fun NewsListContent(
+    articles: LazyPagingItems<Article>,
+    onArticleClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
     val refreshState = articles.loadState.refresh
     val appendState = articles.loadState.append
 
@@ -195,7 +212,10 @@ fun NewsListContent(articles: LazyPagingItems<Article>, modifier: Modifier = Mod
                 ) { index ->
                     val article = articles[index]
                     if (article != null) {
-                        ArticleCard(article = article)
+                        ArticleCard(
+                            article = article,
+                            onClick = { onArticleClick(article.url) }
+                        )
                     }
                 }
 
@@ -276,7 +296,8 @@ private fun HomeScreenSuccessPreview() {
             articles = articles,
             searchQuery = "",
             onQueryChange = {},
-            onClearQuery = {}
+            onClearQuery = {},
+            onArticleClick = {}
         )
     }
 }
@@ -301,7 +322,8 @@ private fun HomeScreenLoadingPreview() {
             articles = articles,
             searchQuery = "",
             onQueryChange = {},
-            onClearQuery = {}
+            onClearQuery = {},
+            onArticleClick = {}
         )
     }
 }
@@ -326,7 +348,8 @@ private fun HomeScreenErrorPreview() {
             articles = articles,
             searchQuery = "",
             onQueryChange = {},
-            onClearQuery = {}
+            onClearQuery = {},
+            onArticleClick = {}
         )
     }
 }
