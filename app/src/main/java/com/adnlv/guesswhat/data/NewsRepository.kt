@@ -22,7 +22,10 @@ class NewsRepository(
 ) {
 
     @OptIn(ExperimentalPagingApi::class)
-    fun getTopHeadlinesStream(country: String = "us", category: String? = null): Flow<PagingData<Article>> {
+    fun getTopHeadlinesStream(
+        country: String = NewsConfig.DEFAULT_COUNTRY,
+        category: String? = null
+    ): Flow<PagingData<Article>> {
         val feedKey = FeedKeys.headlines(country = country, category = category)
         return Pager(
             config = PagingConfig(
@@ -72,6 +75,6 @@ class NewsRepository(
     }
 
     companion object {
-        const val PAGE_SIZE = 20
+        const val PAGE_SIZE = NewsConfig.PAGE_SIZE
     }
 }

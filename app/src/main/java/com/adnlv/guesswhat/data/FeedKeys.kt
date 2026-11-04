@@ -9,7 +9,7 @@ object FeedKeys {
     private const val PREFIX_HEADLINES = "headlines"
     private const val PREFIX_SEARCH = "search"
 
-    fun headlines(country: String = "us", category: String? = null): String =
+    fun headlines(country: String = NewsConfig.DEFAULT_COUNTRY, category: String? = null): String =
         "$PREFIX_HEADLINES:$country:${category?.lowercase().orEmpty()}"
 
     fun search(query: String): String = "$PREFIX_SEARCH:${query.trim().lowercase()}"
@@ -18,7 +18,7 @@ object FeedKeys {
         FeedType.Search(feedKey.removePrefix("$PREFIX_SEARCH:"))
     } else {
         val parts = feedKey.split(":")
-        val country = parts.getOrNull(1)?.takeIf { it.isNotEmpty() } ?: "us"
+        val country = parts.getOrNull(1)?.takeIf { it.isNotEmpty() } ?: NewsConfig.DEFAULT_COUNTRY
         val category = parts.getOrNull(2)?.takeIf { it.isNotEmpty() }
         FeedType.Headlines(country = country, category = category)
     }
