@@ -22,25 +22,26 @@ class NewsRepository(
 ) {
 
     @OptIn(ExperimentalPagingApi::class)
-    fun getTopHeadlinesStream(country: String = "us", category: String? = null): Flow<PagingData<Article>> = Pager(
-        config = PagingConfig(
-            pageSize = PAGE_SIZE,
-            enablePlaceholders = false
-        ),
-        remoteMediator = NewsRemoteMediator(
-            newsApi = newsApi,
-            articleDao = articleDao,
-            remoteKeysDao = remoteKeysDao,
-            category = category,
-            searchQuery = null,
-            country = country,
-            withTransaction = withTransaction
-        ),
-        pagingSourceFactory = {
-            articleDao.getHeadlinesPagingSource(category = category)
+    fun getTopHeadlinesStream(country: String = "us", category: String? = null): Flow<PagingData<Article>> {
+        val feedKey = FeedKeys.headlines(country = country, category = category)
+        return Pager(
+            config = PagingConfig(
+                pageSize = PAGE_SIZE,
+                enablePlaceholders = false
+            ),
+            remoteMediator = NewsRemoteMediator(
+                feedKey = feedKey,
+                newsApi = newsApi,
+                articleDao = articleDao,
+                remoteKeysDao = remoteKeysDao,
+                withTransaction = withTransaction
+            ),
+            pagingSourceFactory = {
+                articleDao.pagingSource(feedKey = feedKey)
+            }
+        ).flow.map { pagingData ->
+            pagingData.map { entity -> entity.toDomain() }
         }
-    ).flow.map { pagingData ->
-        pagingData.map { entity -> entity.toDomain() }
     }
 
     @OptIn(ExperimentalPagingApi::class)
@@ -49,22 +50,21 @@ class NewsRepository(
         if (trimmedQuery.isEmpty()) {
             return getTopHeadlinesStream()
         }
-        val normalizedQuery = trimmedQuery.lowercase()
+        val feedKey = FeedKeys.search(trimmedQuery)
         return Pager(
             config = PagingConfig(
                 pageSize = PAGE_SIZE,
                 enablePlaceholders = false
             ),
             remoteMediator = NewsRemoteMediator(
+                feedKey = feedKey,
                 newsApi = newsApi,
                 articleDao = articleDao,
                 remoteKeysDao = remoteKeysDao,
-                category = null,
-                searchQuery = trimmedQuery,
                 withTransaction = withTransaction
             ),
             pagingSourceFactory = {
-                articleDao.searchArticlesPagingSource(query = normalizedQuery)
+                articleDao.pagingSource(feedKey = feedKey)
             }
         ).flow.map { pagingData ->
             pagingData.map { entity -> entity.toDomain() }

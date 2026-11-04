@@ -4,23 +4,24 @@ import androidx.paging.ExperimentalPagingApi
 import androidx.paging.LoadType
 import androidx.paging.PagingState
 import androidx.paging.RemoteMediator
+import com.adnlv.guesswhat.data.FeedKeys
+import com.adnlv.guesswhat.data.FeedType
 import com.adnlv.guesswhat.data.local.ArticleDao
 import com.adnlv.guesswhat.data.local.ArticleEntity
 import com.adnlv.guesswhat.data.local.RemoteKeys
 import com.adnlv.guesswhat.data.local.RemoteKeysDao
 import com.adnlv.guesswhat.data.mapper.toEntity
 import com.adnlv.guesswhat.data.remote.NewsApi
+import com.adnlv.guesswhat.data.remote.dto.NewsResponseDto
 import kotlinx.coroutines.CancellationException
 import retrofit2.HttpException
 
 @OptIn(ExperimentalPagingApi::class)
 class NewsRemoteMediator(
+    private val feedKey: String,
     private val newsApi: NewsApi,
     private val articleDao: ArticleDao,
     private val remoteKeysDao: RemoteKeysDao,
-    private val category: String? = null,
-    private val searchQuery: String? = null,
-    private val country: String = "us",
     private val withTransaction: suspend (suspend () -> Unit) -> Unit
 ) : RemoteMediator<Int, ArticleEntity>() {
 
@@ -41,24 +42,8 @@ class NewsRemoteMediator(
             }
         }
 
-        val trimmedQuery = searchQuery?.trim()?.takeIf { it.isNotEmpty() }
-        val normalizedQuery = trimmedQuery?.lowercase()
-
         return try {
-            val response = if (trimmedQuery == null) {
-                newsApi.getTopHeadlines(
-                    country = country,
-                    category = category,
-                    page = page,
-                    pageSize = state.config.pageSize
-                )
-            } else {
-                newsApi.searchNews(
-                    query = trimmedQuery,
-                    page = page,
-                    pageSize = state.config.pageSize
-                )
-            }
+            val response = fetchResponse(page = page, pageSize = state.config.pageSize)
 
             if (response.status != "ok") {
                 if (response.code == "maximumResultsReached") {
@@ -68,32 +53,27 @@ class NewsRemoteMediator(
                 return MediatorResult.Error(IllegalStateException(message))
             }
 
+            val startPosition = (page - STARTING_PAGE_INDEX) * state.config.pageSize
             val entities = response.articles.toEntity(
-                category = if (normalizedQuery == null) category else null,
-                searchQuery = normalizedQuery
+                feedKey = feedKey,
+                startPosition = startPosition
             )
             val endOfPaginationReached = entities.isEmpty()
 
             withTransaction {
                 if (loadType == LoadType.REFRESH) {
-                    if (normalizedQuery == null) {
-                        remoteKeysDao.deleteHeadlinesKeys(category = category)
-                        articleDao.deleteHeadlines(category = category)
-                    } else {
-                        remoteKeysDao.deleteSearchKeys(query = normalizedQuery)
-                        articleDao.deleteSearchArticles(query = normalizedQuery)
-                    }
+                    remoteKeysDao.deleteFeedKeys(feedKey = feedKey)
+                    articleDao.deleteFeed(feedKey = feedKey)
                 }
                 if (entities.isNotEmpty()) {
                     val prevKey = if (page == STARTING_PAGE_INDEX) null else page - 1
                     val nextKey = if (endOfPaginationReached) null else page + 1
                     val keys = entities.map { article ->
                         RemoteKeys(
+                            feedKey = feedKey,
                             articleUrl = article.url,
                             prevKey = prevKey,
-                            nextKey = nextKey,
-                            category = if (normalizedQuery == null) category else null,
-                            searchQuery = normalizedQuery
+                            nextKey = nextKey
                         )
                     }
                     remoteKeysDao.insertAll(keys)
@@ -115,14 +95,29 @@ class NewsRemoteMediator(
         }
     }
 
+    private suspend fun fetchResponse(page: Int, pageSize: Int): NewsResponseDto =
+        when (val feed = FeedKeys.parse(feedKey)) {
+            is FeedType.Search -> newsApi.searchNews(
+                query = feed.query,
+                page = page,
+                pageSize = pageSize
+            )
+            is FeedType.Headlines -> newsApi.getTopHeadlines(
+                country = feed.country,
+                category = feed.category,
+                page = page,
+                pageSize = pageSize
+            )
+        }
+
     private suspend fun getRemoteKeyForLastItem(state: PagingState<Int, ArticleEntity>): RemoteKeys? =
         state.pages.lastOrNull { it.data.isNotEmpty() }?.data?.lastOrNull()
-            ?.let { article -> remoteKeysDao.getRemoteKeys(article.url) }
+            ?.let { article -> remoteKeysDao.getRemoteKeys(feedKey = feedKey, url = article.url) }
 
     private suspend fun getRemoteKeyClosestToCurrentPosition(state: PagingState<Int, ArticleEntity>): RemoteKeys? =
         state.anchorPosition?.let { position ->
-            state.closestItemToPosition(position)?.url?.let { url ->
-                remoteKeysDao.getRemoteKeys(url)
+            state.closestItemToPosition(position)?.let { article ->
+                remoteKeysDao.getRemoteKeys(feedKey = feedKey, url = article.url)
             }
         }
 

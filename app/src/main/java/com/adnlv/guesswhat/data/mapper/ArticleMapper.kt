@@ -25,22 +25,26 @@ fun ArticleDto.toDomain(): Article? {
 
 fun List<ArticleDto>.toDomain(): List<Article> = mapNotNull { it.toDomain() }
 
-fun ArticleDto.toEntity(category: String? = null, searchQuery: String? = null): ArticleEntity? {
+fun ArticleDto.toEntity(feedKey: String, position: Int): ArticleEntity? {
     val article = toDomain() ?: return null
     return ArticleEntity(
+        feedKey = feedKey,
         url = article.url,
+        position = position,
         title = article.title,
         description = article.description,
         imageUrl = article.imageUrl,
         sourceName = article.sourceName,
-        publishedAt = article.publishedAt,
-        category = category,
-        searchQuery = searchQuery
+        publishedAt = article.publishedAt
     )
 }
 
-fun List<ArticleDto>.toEntity(category: String? = null, searchQuery: String? = null): List<ArticleEntity> =
-    mapNotNull { it.toEntity(category = category, searchQuery = searchQuery) }
+fun List<ArticleDto>.toEntity(feedKey: String, startPosition: Int = 0): List<ArticleEntity> {
+    var currentPosition = startPosition
+    return mapNotNull { dto ->
+        dto.toEntity(feedKey = feedKey, position = currentPosition)?.also { currentPosition++ }
+    }
+}
 
 fun ArticleEntity.toDomain(): Article = Article(
     title = title,

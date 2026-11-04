@@ -6,6 +6,7 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import androidx.paging.RemoteMediator
+import com.adnlv.guesswhat.data.FeedKeys
 import com.adnlv.guesswhat.data.local.ArticleDao
 import com.adnlv.guesswhat.data.local.ArticleEntity
 import com.adnlv.guesswhat.data.local.RemoteKeys
@@ -52,58 +53,51 @@ class NewsRemoteMediatorTest {
     }
 
     private class FakeArticleDao : ArticleDao {
-        val articles = LinkedHashMap<String, ArticleEntity>()
+        val articles = LinkedHashMap<Pair<String, String>, ArticleEntity>()
 
-        override fun getHeadlinesPagingSource(category: String?): PagingSource<Int, ArticleEntity> =
-            throw UnsupportedOperationException()
-
-        override fun searchArticlesPagingSource(query: String): PagingSource<Int, ArticleEntity> =
-            throw UnsupportedOperationException()
-
-        suspend fun getHeadlines(category: String?): List<ArticleEntity> = articles.values.filter {
-            (category == null && it.category == null && it.searchQuery == null) ||
-                (it.category == category && it.searchQuery == null)
+        override fun pagingSource(feedKey: String): PagingSource<Int, ArticleEntity> = createPagingSource {
+            articles.values
+                .filter { it.feedKey == feedKey }
+                .sortedBy { it.position }
         }
 
-        suspend fun searchArticles(query: String): List<ArticleEntity> = articles.values.filter {
-            it.searchQuery == query
-        }
+        fun getFeedArticles(feedKey: String): List<ArticleEntity> = articles.values
+            .filter { it.feedKey == feedKey }
+            .sortedBy { it.position }
 
         override suspend fun insertArticles(articles: List<ArticleEntity>) {
-            articles.forEach { this.articles[it.url] = it }
+            articles.forEach { this.articles[Pair(it.feedKey, it.url)] = it }
         }
 
-        override suspend fun deleteHeadlines(category: String?) {
-            val urlsToRemove = getHeadlines(category).map { it.url }
-            urlsToRemove.forEach { articles.remove(it) }
+        override suspend fun deleteFeed(feedKey: String) {
+            val keysToRemove = articles.keys.filter { it.first == feedKey }
+            keysToRemove.forEach { articles.remove(it) }
         }
 
-        override suspend fun deleteSearchArticles(query: String) {
-            val urlsToRemove = articles.values.filter { it.searchQuery == query }.map { it.url }
-            urlsToRemove.forEach { articles.remove(it) }
-        }
+        private fun createPagingSource(itemsProvider: () -> List<ArticleEntity>): PagingSource<Int, ArticleEntity> =
+            object : PagingSource<Int, ArticleEntity>() {
+                override fun getRefreshKey(state: PagingState<Int, ArticleEntity>): Int? = null
+
+                override suspend fun load(params: LoadParams<Int>): LoadResult<Int, ArticleEntity> = LoadResult.Page(
+                    data = itemsProvider(),
+                    prevKey = null,
+                    nextKey = null
+                )
+            }
     }
 
     private class FakeRemoteKeysDao : RemoteKeysDao {
-        val keys = LinkedHashMap<String, RemoteKeys>()
+        val keys = LinkedHashMap<Pair<String, String>, RemoteKeys>()
 
-        override suspend fun insertAll(remoteKey: List<RemoteKeys>) {
-            remoteKey.forEach { keys[it.articleUrl] = it }
+        override suspend fun insertAll(remoteKeys: List<RemoteKeys>) {
+            remoteKeys.forEach { keys[Pair(it.feedKey, it.articleUrl)] = it }
         }
 
-        override suspend fun getRemoteKeys(url: String): RemoteKeys? = keys[url]
+        override suspend fun getRemoteKeys(feedKey: String, url: String): RemoteKeys? = keys[Pair(feedKey, url)]
 
-        override suspend fun deleteHeadlinesKeys(category: String?) {
-            val urlsToRemove = keys.values.filter {
-                (category == null && it.category == null && it.searchQuery == null) ||
-                    (it.category == category && it.searchQuery == null)
-            }.map { it.articleUrl }
-            urlsToRemove.forEach { keys.remove(it) }
-        }
-
-        override suspend fun deleteSearchKeys(query: String) {
-            val urlsToRemove = keys.values.filter { it.searchQuery == query }.map { it.articleUrl }
-            urlsToRemove.forEach { keys.remove(it) }
+        override suspend fun deleteFeedKeys(feedKey: String) {
+            val keysToRemove = keys.keys.filter { it.first == feedKey }
+            keysToRemove.forEach { keys.remove(it) }
         }
     }
 
@@ -119,6 +113,7 @@ class NewsRemoteMediatorTest {
     @Test
     fun load_prepend_returnsSuccessWithEndOfPaginationTrue() = runBlocking {
         val mediator = NewsRemoteMediator(
+            feedKey = FeedKeys.headlines(),
             newsApi = FakeNewsApi(),
             articleDao = FakeArticleDao(),
             remoteKeysDao = FakeRemoteKeysDao(),
@@ -133,6 +128,7 @@ class NewsRemoteMediatorTest {
 
     @Test
     fun load_refreshWithArticles_insertsEntitiesAndKeysInTransaction() = runBlocking {
+        val defaultFeedKey = FeedKeys.headlines()
         val fakeApi = FakeNewsApi(
             responseToReturn = NewsResponseDto(
                 status = "ok",
@@ -148,6 +144,7 @@ class NewsRemoteMediatorTest {
         var transactionCalled = false
 
         val mediator = NewsRemoteMediator(
+            feedKey = defaultFeedKey,
             newsApi = fakeApi,
             articleDao = fakeArticleDao,
             remoteKeysDao = fakeKeysDao,
@@ -162,9 +159,9 @@ class NewsRemoteMediatorTest {
         assertTrue(result is RemoteMediator.MediatorResult.Success)
         assertFalse((result as RemoteMediator.MediatorResult.Success).endOfPaginationReached)
         assertTrue(transactionCalled)
-        assertEquals(2, fakeArticleDao.getHeadlines(null).size)
-        assertEquals(2, fakeKeysDao.getRemoteKeys("https://example.com/1")?.nextKey)
-        assertEquals(null, fakeKeysDao.getRemoteKeys("https://example.com/1")?.prevKey)
+        assertEquals(2, fakeArticleDao.getFeedArticles(defaultFeedKey).size)
+        assertEquals(2, fakeKeysDao.getRemoteKeys(defaultFeedKey, "https://example.com/1")?.nextKey)
+        assertEquals(null, fakeKeysDao.getRemoteKeys(defaultFeedKey, "https://example.com/1")?.prevKey)
     }
 
     @Test
@@ -177,6 +174,7 @@ class NewsRemoteMediatorTest {
             )
         )
         val mediator = NewsRemoteMediator(
+            feedKey = FeedKeys.headlines(),
             newsApi = fakeApi,
             articleDao = FakeArticleDao(),
             remoteKeysDao = FakeRemoteKeysDao(),
@@ -195,6 +193,7 @@ class NewsRemoteMediatorTest {
             exceptionToThrow = IOException("No network")
         )
         val mediator = NewsRemoteMediator(
+            feedKey = FeedKeys.headlines(),
             newsApi = fakeApi,
             articleDao = FakeArticleDao(),
             remoteKeysDao = FakeRemoteKeysDao(),
@@ -209,8 +208,11 @@ class NewsRemoteMediatorTest {
 
     @Test
     fun load_appendWithNextKey_loadsNextPageAndStoresUpdatedKeys() = runBlocking {
+        val defaultFeedKey = FeedKeys.headlines()
         val firstEntity = ArticleEntity(
+            feedKey = defaultFeedKey,
             url = "https://example.com/1",
+            position = 0,
             title = "Page 1 Article",
             description = "Desc",
             imageUrl = null,
@@ -224,6 +226,7 @@ class NewsRemoteMediatorTest {
             insertAll(
                 listOf(
                     RemoteKeys(
+                        feedKey = defaultFeedKey,
                         articleUrl = "https://example.com/1",
                         prevKey = null,
                         nextKey = 2
@@ -241,6 +244,7 @@ class NewsRemoteMediatorTest {
             )
         )
         val mediator = NewsRemoteMediator(
+            feedKey = defaultFeedKey,
             newsApi = fakeApi,
             articleDao = fakeArticleDao,
             remoteKeysDao = fakeKeysDao,
@@ -264,8 +268,8 @@ class NewsRemoteMediatorTest {
         assertTrue(result is RemoteMediator.MediatorResult.Success)
         assertFalse((result as RemoteMediator.MediatorResult.Success).endOfPaginationReached)
         assertEquals(2, fakeApi.lastPage)
-        assertEquals(3, fakeKeysDao.getRemoteKeys("https://example.com/2")?.nextKey)
-        assertEquals(1, fakeKeysDao.getRemoteKeys("https://example.com/2")?.prevKey)
+        assertEquals(3, fakeKeysDao.getRemoteKeys(defaultFeedKey, "https://example.com/2")?.nextKey)
+        assertEquals(1, fakeKeysDao.getRemoteKeys(defaultFeedKey, "https://example.com/2")?.prevKey)
     }
 
     @Test
@@ -281,19 +285,20 @@ class NewsRemoteMediatorTest {
         )
         val fakeArticleDao = FakeArticleDao()
         val fakeKeysDao = FakeRemoteKeysDao()
+        val feedKey = FeedKeys.search("  Kotlin  ")
         val mediator = NewsRemoteMediator(
+            feedKey = feedKey,
             newsApi = fakeApi,
             articleDao = fakeArticleDao,
             remoteKeysDao = fakeKeysDao,
-            searchQuery = "  Kotlin  ",
             withTransaction = noTransaction
         )
 
         val result = mediator.load(LoadType.REFRESH, emptyPagingState())
 
         assertTrue(result is RemoteMediator.MediatorResult.Success)
-        assertEquals("Kotlin", fakeApi.lastSearchQuery)
-        assertEquals(1, fakeArticleDao.searchArticles("kotlin").size)
-        assertEquals("kotlin", fakeKeysDao.getRemoteKeys("https://example.com/paging")?.searchQuery)
+        assertEquals("kotlin", fakeApi.lastSearchQuery)
+        assertEquals(1, fakeArticleDao.getFeedArticles(feedKey).size)
+        assertEquals(feedKey, fakeKeysDao.getRemoteKeys(feedKey, "https://example.com/paging")?.feedKey)
     }
 }

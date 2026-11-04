@@ -100,17 +100,17 @@ class ArticleMapperTest {
             publishedAt = "2026-11-03T08:00:00Z"
         )
 
-        val entity = dto.toEntity(category = "technology", searchQuery = "room")
+        val entity = dto.toEntity(feedKey = "headlines:us:technology", position = 5)
 
         assertNotNull(entity)
+        assertEquals("headlines:us:technology", entity?.feedKey)
         assertEquals("https://example.com/room", entity?.url)
+        assertEquals(5, entity?.position)
         assertEquals("Room Caching", entity?.title)
         assertEquals("SQLite storage", entity?.description)
         assertEquals("https://example.com/room.jpg", entity?.imageUrl)
         assertEquals("Tech News", entity?.sourceName)
         assertEquals("2026-11-03T08:00:00Z", entity?.publishedAt)
-        assertEquals("technology", entity?.category)
-        assertEquals("room", entity?.searchQuery)
     }
 
     @Test
@@ -120,20 +120,38 @@ class ArticleMapperTest {
             url = "https://example.com/removed"
         )
 
-        assertNull(invalidDto.toEntity(category = "business"))
+        assertNull(invalidDto.toEntity(feedKey = "headlines:us:business", position = 0))
+    }
+
+    @Test
+    fun listToEntity_incrementsPositionsCorrectly() {
+        val dtos = listOf(
+            ArticleDto(title = "Valid 1", url = "https://example.com/1"),
+            ArticleDto(title = "[Removed]", url = "https://example.com/2"),
+            ArticleDto(title = "Valid 2", url = "https://example.com/3")
+        )
+
+        val entities = dtos.toEntity(feedKey = "headlines:us:", startPosition = 10)
+
+        assertEquals(2, entities.size)
+        assertEquals(10, entities[0].position)
+        assertEquals("https://example.com/1", entities[0].url)
+        assertEquals(11, entities[1].position)
+        assertEquals("https://example.com/3", entities[1].url)
     }
 
     @Test
     fun entityListToDomain_mapsAllEntities() {
         val entities = listOf(
             ArticleEntity(
+                feedKey = "headlines:us:science",
                 url = "https://example.com/1",
+                position = 0,
                 title = "Cached Title",
                 description = "Cached Description",
                 imageUrl = "https://example.com/1.jpg",
                 sourceName = "Cached Source",
-                publishedAt = "2026-11-03T09:00:00Z",
-                category = "science"
+                publishedAt = "2026-11-03T09:00:00Z"
             )
         )
 

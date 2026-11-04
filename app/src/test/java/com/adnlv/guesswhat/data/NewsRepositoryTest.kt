@@ -51,57 +51,32 @@ class NewsRepositoryTest {
     }
 
     private class FakeArticleDao(initialArticles: List<ArticleEntity> = emptyList()) : ArticleDao {
-        private val articles = LinkedHashMap<String, ArticleEntity>().apply {
-            initialArticles.forEach { put(it.url, it) }
+        private val articles = LinkedHashMap<Pair<String, String>, ArticleEntity>().apply {
+            initialArticles.forEach { put(Pair(it.feedKey, it.url), it) }
         }
         private var currentPagingSource: PagingSource<Int, ArticleEntity>? = null
 
-        override fun getHeadlinesPagingSource(category: String?): PagingSource<Int, ArticleEntity> =
-            createPagingSource {
-                articles.values.filter {
-                    (category == null && it.category == null && it.searchQuery == null) ||
-                        (it.category == category && it.searchQuery == null)
-                }
-            }
-
-        override fun searchArticlesPagingSource(query: String): PagingSource<Int, ArticleEntity> = createPagingSource {
-            articles.values.filter {
-                it.searchQuery == query ||
-                    it.title.contains(query, ignoreCase = true) ||
-                    it.description.contains(query, ignoreCase = true)
-            }
+        override fun pagingSource(feedKey: String): PagingSource<Int, ArticleEntity> = createPagingSource {
+            articles.values
+                .filter { it.feedKey == feedKey }
+                .sortedBy { it.position }
         }
 
-        suspend fun getHeadlines(category: String?): List<ArticleEntity> = articles.values.filter {
-            (category == null && it.category == null && it.searchQuery == null) ||
-                (it.category == category && it.searchQuery == null)
-        }
-
-        suspend fun searchArticles(query: String): List<ArticleEntity> = articles.values.filter {
-            it.searchQuery == query ||
-                it.title.contains(query, ignoreCase = true) ||
-                it.description.contains(query, ignoreCase = true)
-        }
+        fun getFeedArticles(feedKey: String): List<ArticleEntity> = articles.values
+            .filter { it.feedKey == feedKey }
+            .sortedBy { it.position }
 
         override suspend fun insertArticles(articles: List<ArticleEntity>) {
             if (articles.isNotEmpty()) {
-                articles.forEach { this.articles[it.url] = it }
+                articles.forEach { this.articles[Pair(it.feedKey, it.url)] = it }
                 currentPagingSource?.invalidate()
             }
         }
 
-        override suspend fun deleteHeadlines(category: String?) {
-            val urlsToRemove = getHeadlines(category).map { it.url }
-            if (urlsToRemove.isNotEmpty()) {
-                urlsToRemove.forEach { articles.remove(it) }
-                currentPagingSource?.invalidate()
-            }
-        }
-
-        override suspend fun deleteSearchArticles(query: String) {
-            val urlsToRemove = articles.values.filter { it.searchQuery == query }.map { it.url }
-            if (urlsToRemove.isNotEmpty()) {
-                urlsToRemove.forEach { articles.remove(it) }
+        override suspend fun deleteFeed(feedKey: String) {
+            val keysToRemove = articles.keys.filter { it.first == feedKey }
+            if (keysToRemove.isNotEmpty()) {
+                keysToRemove.forEach { articles.remove(it) }
                 currentPagingSource?.invalidate()
             }
         }
@@ -119,25 +94,17 @@ class NewsRepositoryTest {
     }
 
     private class FakeRemoteKeysDao : RemoteKeysDao {
-        private val keys = LinkedHashMap<String, RemoteKeys>()
+        private val keys = LinkedHashMap<Pair<String, String>, RemoteKeys>()
 
-        override suspend fun insertAll(remoteKey: List<RemoteKeys>) {
-            remoteKey.forEach { keys[it.articleUrl] = it }
+        override suspend fun insertAll(remoteKeys: List<RemoteKeys>) {
+            remoteKeys.forEach { keys[Pair(it.feedKey, it.articleUrl)] = it }
         }
 
-        override suspend fun getRemoteKeys(url: String): RemoteKeys? = keys[url]
+        override suspend fun getRemoteKeys(feedKey: String, url: String): RemoteKeys? = keys[Pair(feedKey, url)]
 
-        override suspend fun deleteHeadlinesKeys(category: String?) {
-            val urlsToRemove = keys.values.filter {
-                (category == null && it.category == null && it.searchQuery == null) ||
-                    (it.category == category && it.searchQuery == null)
-            }.map { it.articleUrl }
-            urlsToRemove.forEach { keys.remove(it) }
-        }
-
-        override suspend fun deleteSearchKeys(query: String) {
-            val urlsToRemove = keys.values.filter { it.searchQuery == query }.map { it.articleUrl }
-            urlsToRemove.forEach { keys.remove(it) }
+        override suspend fun deleteFeedKeys(feedKey: String) {
+            val keysToRemove = keys.keys.filter { it.first == feedKey }
+            keysToRemove.forEach { keys.remove(it) }
         }
     }
 
@@ -165,7 +132,8 @@ class NewsRepositoryTest {
 
         assertEquals(1, articles.size)
         assertEquals("Ukrainian Tech News", articles.first().title)
-        assertEquals(1, fakeDao.getHeadlines(null).size)
+        val feedKey = FeedKeys.headlines(country = "us", category = null)
+        assertEquals(1, fakeDao.getFeedArticles(feedKey).size)
     }
 
     @Test
@@ -204,8 +172,9 @@ class NewsRepositoryTest {
 
         assertEquals(1, articles.size)
         assertEquals("Kotlin 2.0 Released", articles.first().title)
-        assertEquals("Kotlin", fakeApi.lastSearchQuery)
-        assertEquals(1, fakeDao.searchArticles("kotlin").size)
+        assertEquals("kotlin", fakeApi.lastSearchQuery)
+        val feedKey = FeedKeys.search("Kotlin")
+        assertEquals(1, fakeDao.getFeedArticles(feedKey).size)
     }
 
     @Test

@@ -8,37 +8,12 @@ import androidx.room.Query
 
 @Dao
 interface ArticleDao {
-    @Query(
-        """
-        SELECT * FROM articles
-        WHERE (:category IS NULL AND category IS NULL AND searchQuery IS NULL)
-        OR (category = :category AND searchQuery IS NULL)
-        """
-    )
-    fun getHeadlinesPagingSource(category: String?): PagingSource<Int, ArticleEntity>
-
-    @Query(
-        """
-        SELECT * FROM articles
-        WHERE searchQuery = :query
-        OR title LIKE '%' || :query || '%'
-        OR description LIKE '%' || :query || '%'
-        """
-    )
-    fun searchArticlesPagingSource(query: String): PagingSource<Int, ArticleEntity>
+    @Query("SELECT * FROM articles WHERE feedKey = :feedKey ORDER BY position ASC")
+    fun pagingSource(feedKey: String): PagingSource<Int, ArticleEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertArticles(articles: List<ArticleEntity>)
 
-    @Query(
-        """
-        DELETE FROM articles
-        WHERE (:category IS NULL AND category IS NULL AND searchQuery IS NULL)
-        OR (category = :category AND searchQuery IS NULL)
-        """
-    )
-    suspend fun deleteHeadlines(category: String?)
-
-    @Query("DELETE FROM articles WHERE searchQuery = :query")
-    suspend fun deleteSearchArticles(query: String)
+    @Query("DELETE FROM articles WHERE feedKey = :feedKey")
+    suspend fun deleteFeed(feedKey: String)
 }
