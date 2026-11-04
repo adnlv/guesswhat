@@ -107,6 +107,8 @@ class NewsRemoteMediatorTest {
         }
     }
 
+    private val noTransaction: suspend (suspend () -> Unit) -> Unit = { it() }
+
     private fun emptyPagingState(): PagingState<Int, ArticleEntity> = PagingState(
         pages = emptyList(),
         anchorPosition = null,
@@ -119,7 +121,8 @@ class NewsRemoteMediatorTest {
         val mediator = NewsRemoteMediator(
             newsApi = FakeNewsApi(),
             articleDao = FakeArticleDao(),
-            remoteKeysDao = FakeRemoteKeysDao()
+            remoteKeysDao = FakeRemoteKeysDao(),
+            withTransaction = noTransaction
         )
 
         val result = mediator.load(LoadType.PREPEND, emptyPagingState())
@@ -176,7 +179,8 @@ class NewsRemoteMediatorTest {
         val mediator = NewsRemoteMediator(
             newsApi = fakeApi,
             articleDao = FakeArticleDao(),
-            remoteKeysDao = FakeRemoteKeysDao()
+            remoteKeysDao = FakeRemoteKeysDao(),
+            withTransaction = noTransaction
         )
 
         val result = mediator.load(LoadType.REFRESH, emptyPagingState())
@@ -193,7 +197,8 @@ class NewsRemoteMediatorTest {
         val mediator = NewsRemoteMediator(
             newsApi = fakeApi,
             articleDao = FakeArticleDao(),
-            remoteKeysDao = FakeRemoteKeysDao()
+            remoteKeysDao = FakeRemoteKeysDao(),
+            withTransaction = noTransaction
         )
 
         val result = mediator.load(LoadType.REFRESH, emptyPagingState())
@@ -238,7 +243,8 @@ class NewsRemoteMediatorTest {
         val mediator = NewsRemoteMediator(
             newsApi = fakeApi,
             articleDao = fakeArticleDao,
-            remoteKeysDao = fakeKeysDao
+            remoteKeysDao = fakeKeysDao,
+            withTransaction = noTransaction
         )
         val pagingState = PagingState(
             pages = listOf(
@@ -279,7 +285,8 @@ class NewsRemoteMediatorTest {
             newsApi = fakeApi,
             articleDao = fakeArticleDao,
             remoteKeysDao = fakeKeysDao,
-            searchQuery = "  Kotlin  "
+            searchQuery = "  Kotlin  ",
+            withTransaction = noTransaction
         )
 
         val result = mediator.load(LoadType.REFRESH, emptyPagingState())

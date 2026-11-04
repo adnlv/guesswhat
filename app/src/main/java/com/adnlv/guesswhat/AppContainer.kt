@@ -2,6 +2,7 @@ package com.adnlv.guesswhat
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.withTransaction
 import com.adnlv.guesswhat.data.NewsRepository
 import com.adnlv.guesswhat.data.local.NewsDatabase
 import com.adnlv.guesswhat.data.remote.AuthInterceptor
@@ -63,6 +64,11 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val newsRepository: NewsRepository by lazy {
-        NewsRepository(newsApi, database)
+        NewsRepository(
+            newsApi = newsApi,
+            articleDao = database.articleDao(),
+            remoteKeysDao = database.remoteKeysDao(),
+            withTransaction = { block -> database.withTransaction(block) }
+        )
     }
 }

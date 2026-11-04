@@ -5,10 +5,7 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
-import androidx.room.withTransaction
 import com.adnlv.guesswhat.data.local.ArticleDao
-import com.adnlv.guesswhat.data.local.NewsDatabase
-import com.adnlv.guesswhat.data.local.RemoteKeys
 import com.adnlv.guesswhat.data.local.RemoteKeysDao
 import com.adnlv.guesswhat.data.mapper.toDomain
 import com.adnlv.guesswhat.data.mediator.NewsRemoteMediator
@@ -20,19 +17,9 @@ import kotlinx.coroutines.flow.map
 class NewsRepository(
     private val newsApi: NewsApi,
     private val articleDao: ArticleDao,
-    private val remoteKeysDao: RemoteKeysDao = NoOpRemoteKeysDao,
-    private val withTransaction: suspend (suspend () -> Unit) -> Unit = { it() }
+    private val remoteKeysDao: RemoteKeysDao,
+    private val withTransaction: suspend (suspend () -> Unit) -> Unit
 ) {
-
-    constructor(
-        newsApi: NewsApi,
-        database: NewsDatabase
-    ) : this(
-        newsApi = newsApi,
-        articleDao = database.articleDao(),
-        remoteKeysDao = database.remoteKeysDao(),
-        withTransaction = { block -> database.withTransaction(block) }
-    )
 
     @OptIn(ExperimentalPagingApi::class)
     fun getTopHeadlinesStream(country: String = "us", category: String? = null): Flow<PagingData<Article>> = Pager(
@@ -82,13 +69,6 @@ class NewsRepository(
         ).flow.map { pagingData ->
             pagingData.map { entity -> entity.toDomain() }
         }
-    }
-
-    private object NoOpRemoteKeysDao : RemoteKeysDao {
-        override suspend fun insertAll(remoteKey: List<RemoteKeys>) = Unit
-        override suspend fun getRemoteKeys(url: String): RemoteKeys? = null
-        override suspend fun deleteHeadlinesKeys(category: String?) = Unit
-        override suspend fun deleteSearchKeys(query: String) = Unit
     }
 
     companion object {

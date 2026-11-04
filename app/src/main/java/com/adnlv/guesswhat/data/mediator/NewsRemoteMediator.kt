@@ -4,10 +4,8 @@ import androidx.paging.ExperimentalPagingApi
 import androidx.paging.LoadType
 import androidx.paging.PagingState
 import androidx.paging.RemoteMediator
-import androidx.room.withTransaction
 import com.adnlv.guesswhat.data.local.ArticleDao
 import com.adnlv.guesswhat.data.local.ArticleEntity
-import com.adnlv.guesswhat.data.local.NewsDatabase
 import com.adnlv.guesswhat.data.local.RemoteKeys
 import com.adnlv.guesswhat.data.local.RemoteKeysDao
 import com.adnlv.guesswhat.data.mapper.toEntity
@@ -23,24 +21,8 @@ class NewsRemoteMediator(
     private val category: String? = null,
     private val searchQuery: String? = null,
     private val country: String = "us",
-    private val withTransaction: suspend (suspend () -> Unit) -> Unit = { it() }
+    private val withTransaction: suspend (suspend () -> Unit) -> Unit
 ) : RemoteMediator<Int, ArticleEntity>() {
-
-    constructor(
-        newsApi: NewsApi,
-        database: NewsDatabase,
-        category: String? = null,
-        searchQuery: String? = null,
-        country: String = "us"
-    ) : this(
-        newsApi = newsApi,
-        articleDao = database.articleDao(),
-        remoteKeysDao = database.remoteKeysDao(),
-        category = category,
-        searchQuery = searchQuery,
-        country = country,
-        withTransaction = { block -> database.withTransaction(block) }
-    )
 
     override suspend fun load(loadType: LoadType, state: PagingState<Int, ArticleEntity>): MediatorResult {
         val page = when (loadType) {

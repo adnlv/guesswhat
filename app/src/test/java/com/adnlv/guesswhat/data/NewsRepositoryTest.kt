@@ -141,6 +141,8 @@ class NewsRepositoryTest {
         }
     }
 
+    private val noTransaction: suspend (suspend () -> Unit) -> Unit = { it() }
+
     @Test
     fun getTopHeadlinesStream_onSuccess_cachesAndEmitsMappedArticles() = runBlocking {
         val fakeApi = FakeNewsApi(
@@ -157,7 +159,7 @@ class NewsRepositoryTest {
         )
         val fakeDao = FakeArticleDao()
         val fakeKeysDao = FakeRemoteKeysDao()
-        val repository = NewsRepository(fakeApi, fakeDao, fakeKeysDao)
+        val repository = NewsRepository(fakeApi, fakeDao, fakeKeysDao, noTransaction)
 
         val articles = repository.getTopHeadlinesStream().asSnapshot()
 
@@ -171,7 +173,7 @@ class NewsRepositoryTest {
         val fakeApi = FakeNewsApi(
             responseToReturn = NewsResponseDto(status = "ok")
         )
-        val repository = NewsRepository(fakeApi, FakeArticleDao(), FakeRemoteKeysDao())
+        val repository = NewsRepository(fakeApi, FakeArticleDao(), FakeRemoteKeysDao(), noTransaction)
 
         val articles = repository.getTopHeadlinesStream(category = "technology").asSnapshot()
 
@@ -196,7 +198,7 @@ class NewsRepositoryTest {
         )
         val fakeDao = FakeArticleDao()
         val fakeKeysDao = FakeRemoteKeysDao()
-        val repository = NewsRepository(fakeApi, fakeDao, fakeKeysDao)
+        val repository = NewsRepository(fakeApi, fakeDao, fakeKeysDao, noTransaction)
 
         val articles = repository.searchNewsStream("  Kotlin  ").asSnapshot()
 
@@ -220,7 +222,7 @@ class NewsRepositoryTest {
                 )
             )
         )
-        val repository = NewsRepository(fakeApi, FakeArticleDao(), FakeRemoteKeysDao())
+        val repository = NewsRepository(fakeApi, FakeArticleDao(), FakeRemoteKeysDao(), noTransaction)
 
         val articles = repository.searchNewsStream("   ").asSnapshot()
 
