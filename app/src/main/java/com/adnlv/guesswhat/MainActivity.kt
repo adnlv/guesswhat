@@ -10,7 +10,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -23,16 +22,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val appContainer = (application as NewsApp).container
         setContent {
             GuessWhatTheme {
-                MainApp()
+                MainApp(appContainer = appContainer)
             }
         }
     }
 }
 
 @Composable
-fun MainApp(navController: NavHostController = rememberNavController()) {
+fun MainApp(appContainer: AppContainer, navController: NavHostController = rememberNavController()) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
@@ -55,15 +55,8 @@ fun MainApp(navController: NavHostController = rememberNavController()) {
     ) { innerPadding ->
         AppNavHost(
             navController = navController,
+            appContainer = appContainer,
             modifier = Modifier.padding(innerPadding)
         )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun MainAppPreview() {
-    GuessWhatTheme {
-        MainApp()
     }
 }

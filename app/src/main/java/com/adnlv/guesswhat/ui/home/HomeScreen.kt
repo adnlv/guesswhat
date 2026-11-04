@@ -50,45 +50,22 @@ import com.adnlv.guesswhat.ui.theme.GuessWhatTheme
 import kotlinx.coroutines.flow.flowOf
 
 @Composable
-fun HomeScreen(viewModel: HomeViewModel?, modifier: Modifier = Modifier) {
-    if (viewModel != null) {
-        val context = LocalContext.current
-        val articles = viewModel.articles.collectAsLazyPagingItems()
-        val searchQuery by viewModel.searchQuery.collectAsState()
-        HomeScreenContent(
-            articles = articles,
-            searchQuery = searchQuery,
-            onQueryChange = viewModel::onSearchQueryChange,
-            onClearQuery = viewModel::clearSearchQuery,
-            onArticleClick = { url ->
-                CustomTabsIntent.Builder()
-                    .build()
-                    .launchUrl(context, url.toUri())
-            },
-            modifier = modifier
-        )
-    } else {
-        val loadingArticles = remember {
-            flowOf(
-                PagingData.from(
-                    data = emptyList<Article>(),
-                    sourceLoadStates = LoadStates(
-                        refresh = LoadState.Loading,
-                        prepend = LoadState.NotLoading(endOfPaginationReached = true),
-                        append = LoadState.NotLoading(endOfPaginationReached = true)
-                    )
-                )
-            )
-        }.collectAsLazyPagingItems()
-        HomeScreenContent(
-            articles = loadingArticles,
-            searchQuery = "",
-            onQueryChange = {},
-            onClearQuery = {},
-            onArticleClick = {},
-            modifier = modifier
-        )
-    }
+fun HomeScreen(viewModel: HomeViewModel, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val articles = viewModel.articles.collectAsLazyPagingItems()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    HomeScreenContent(
+        articles = articles,
+        searchQuery = searchQuery,
+        onQueryChange = viewModel::onSearchQueryChange,
+        onClearQuery = viewModel::clearSearchQuery,
+        onArticleClick = { url ->
+            CustomTabsIntent.Builder()
+                .build()
+                .launchUrl(context, url.toUri())
+        },
+        modifier = modifier
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

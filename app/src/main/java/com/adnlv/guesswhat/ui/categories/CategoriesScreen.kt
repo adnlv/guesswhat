@@ -49,43 +49,21 @@ import com.adnlv.guesswhat.ui.theme.GuessWhatTheme
 import kotlinx.coroutines.flow.flowOf
 
 @Composable
-fun CategoriesScreen(viewModel: CategoriesViewModel? = null, modifier: Modifier = Modifier) {
-    if (viewModel != null) {
-        val context = LocalContext.current
-        val articles = viewModel.articles.collectAsLazyPagingItems()
-        val selectedCategory by viewModel.selectedCategory.collectAsState()
-        CategoriesScreenContent(
-            articles = articles,
-            selectedCategory = selectedCategory,
-            onCategorySelected = viewModel::selectCategory,
-            onArticleClick = { url ->
-                CustomTabsIntent.Builder()
-                    .build()
-                    .launchUrl(context, url.toUri())
-            },
-            modifier = modifier
-        )
-    } else {
-        val loadingArticles = remember {
-            flowOf(
-                PagingData.from(
-                    data = emptyList<Article>(),
-                    sourceLoadStates = LoadStates(
-                        refresh = LoadState.Loading,
-                        prepend = LoadState.NotLoading(endOfPaginationReached = true),
-                        append = LoadState.NotLoading(endOfPaginationReached = true)
-                    )
-                )
-            )
-        }.collectAsLazyPagingItems()
-        CategoriesScreenContent(
-            articles = loadingArticles,
-            selectedCategory = NewsCategory.DEFAULT,
-            onCategorySelected = {},
-            onArticleClick = {},
-            modifier = modifier
-        )
-    }
+fun CategoriesScreen(viewModel: CategoriesViewModel, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val articles = viewModel.articles.collectAsLazyPagingItems()
+    val selectedCategory by viewModel.selectedCategory.collectAsState()
+    CategoriesScreenContent(
+        articles = articles,
+        selectedCategory = selectedCategory,
+        onCategorySelected = viewModel::selectCategory,
+        onArticleClick = { url ->
+            CustomTabsIntent.Builder()
+                .build()
+                .launchUrl(context, url.toUri())
+        },
+        modifier = modifier
+    )
 }
 
 @Composable
