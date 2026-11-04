@@ -32,6 +32,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
                 if (BuildConfig.DEBUG) {
                     addInterceptor(
                         HttpLoggingInterceptor().apply {
+                            redactHeader("X-Api-Key")
                             level = HttpLoggingInterceptor.Level.BODY
                         }
                     )
