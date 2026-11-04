@@ -27,25 +27,6 @@ interface ArticleDao {
     )
     fun searchArticlesPagingSource(query: String): PagingSource<Int, ArticleEntity>
 
-    @Query(
-        """
-        SELECT * FROM articles
-        WHERE (:category IS NULL AND category IS NULL AND searchQuery IS NULL)
-        OR (category = :category AND searchQuery IS NULL)
-        """
-    )
-    suspend fun getHeadlines(category: String?): List<ArticleEntity>
-
-    @Query(
-        """
-        SELECT * FROM articles
-        WHERE searchQuery = :query
-        OR title LIKE '%' || :query || '%'
-        OR description LIKE '%' || :query || '%'
-        """
-    )
-    suspend fun searchArticles(query: String): List<ArticleEntity>
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertArticles(articles: List<ArticleEntity>)
 

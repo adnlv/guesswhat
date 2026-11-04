@@ -72,12 +72,12 @@ class NewsRepositoryTest {
             }
         }
 
-        override suspend fun getHeadlines(category: String?): List<ArticleEntity> = articles.values.filter {
+        suspend fun getHeadlines(category: String?): List<ArticleEntity> = articles.values.filter {
             (category == null && it.category == null && it.searchQuery == null) ||
                 (it.category == category && it.searchQuery == null)
         }
 
-        override suspend fun searchArticles(query: String): List<ArticleEntity> = articles.values.filter {
+        suspend fun searchArticles(query: String): List<ArticleEntity> = articles.values.filter {
             it.searchQuery == query ||
                 it.title.contains(query, ignoreCase = true) ||
                 it.description.contains(query, ignoreCase = true)
