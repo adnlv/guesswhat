@@ -199,4 +199,41 @@ class NewsRepositoryTest {
         assertTrue(fakeApi.getTopHeadlinesCalled)
         assertEquals(null, fakeApi.lastSearchQuery)
     }
+
+    @Test
+    fun getTopHeadlinesStream_preservesFeedIsolationBetweenCategories() = runBlocking {
+        val techApi = FakeNewsApi(
+            responseToReturn = NewsResponseDto(
+                status = "ok",
+                totalResults = 1,
+                articles = listOf(
+                    ArticleDto(title = "Tech News", url = "https://example.com/shared")
+                )
+            )
+        )
+        val fakeDao = FakeArticleDao()
+        val fakeKeysDao = FakeRemoteKeysDao()
+        val repository = NewsRepository(techApi, fakeDao, fakeKeysDao, noTransaction)
+
+        val techArticles = repository.getTopHeadlinesStream(category = "technology").asSnapshot()
+        assertEquals(1, techArticles.size)
+        assertEquals("Tech News", techArticles.first().title)
+
+        val businessApi = FakeNewsApi(
+            responseToReturn = NewsResponseDto(
+                status = "ok",
+                totalResults = 1,
+                articles = listOf(
+                    ArticleDto(title = "Business News", url = "https://example.com/shared")
+                )
+            )
+        )
+        val businessRepo = NewsRepository(businessApi, fakeDao, fakeKeysDao, noTransaction)
+        val businessArticles = businessRepo.getTopHeadlinesStream(category = "business").asSnapshot()
+        assertEquals(1, businessArticles.size)
+        assertEquals("Business News", businessArticles.first().title)
+
+        assertEquals(1, fakeDao.getFeedArticles(FeedKeys.headlines("us", "technology")).size)
+        assertEquals(1, fakeDao.getFeedArticles(FeedKeys.headlines("us", "business")).size)
+    }
 }

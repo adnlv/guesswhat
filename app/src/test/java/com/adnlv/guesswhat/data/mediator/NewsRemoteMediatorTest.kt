@@ -301,4 +301,177 @@ class NewsRemoteMediatorTest {
         assertEquals(1, fakeArticleDao.getFeedArticles(feedKey).size)
         assertEquals(feedKey, fakeKeysDao.getRemoteKeys(feedKey, "https://example.com/paging")?.feedKey)
     }
+
+    @Test
+    fun load_identicalArticleUrlInDifferentFeeds_retainsSeparateEntriesAndKeys() = runBlocking {
+        val headlinesFeed = FeedKeys.headlines(category = "technology")
+        val searchFeed = FeedKeys.search("technology")
+        val sharedUrl = "https://example.com/shared-tech"
+        val articleDto = ArticleDto(title = "Shared Tech Article", url = sharedUrl)
+
+        val fakeApi = FakeNewsApi(
+            responseToReturn = NewsResponseDto(
+                status = "ok",
+                totalResults = 1,
+                articles = listOf(articleDto)
+            )
+        )
+        val fakeArticleDao = FakeArticleDao()
+        val fakeKeysDao = FakeRemoteKeysDao()
+
+        val headlinesMediator = NewsRemoteMediator(
+            feedKey = headlinesFeed,
+            newsApi = fakeApi,
+            articleDao = fakeArticleDao,
+            remoteKeysDao = fakeKeysDao,
+            withTransaction = noTransaction
+        )
+        val searchMediator = NewsRemoteMediator(
+            feedKey = searchFeed,
+            newsApi = fakeApi,
+            articleDao = fakeArticleDao,
+            remoteKeysDao = fakeKeysDao,
+            withTransaction = noTransaction
+        )
+
+        headlinesMediator.load(LoadType.REFRESH, emptyPagingState())
+        searchMediator.load(LoadType.REFRESH, emptyPagingState())
+
+        assertEquals(1, fakeArticleDao.getFeedArticles(headlinesFeed).size)
+        assertEquals(1, fakeArticleDao.getFeedArticles(searchFeed).size)
+        assertEquals(2, fakeArticleDao.articles.size)
+
+        val headlinesKey = fakeKeysDao.getRemoteKeys(headlinesFeed, sharedUrl)
+        val searchKey = fakeKeysDao.getRemoteKeys(searchFeed, sharedUrl)
+
+        assertEquals(headlinesFeed, headlinesKey?.feedKey)
+        assertEquals(searchFeed, searchKey?.feedKey)
+    }
+
+    @Test
+    fun load_refreshOneFeed_leavesOtherFeedsIntact() = runBlocking {
+        val businessFeed = FeedKeys.headlines(category = "business")
+        val sportsFeed = FeedKeys.headlines(category = "sports")
+
+        val existingBusinessArticle = ArticleEntity(
+            feedKey = businessFeed,
+            url = "https://example.com/business-1",
+            position = 0,
+            title = "Business Market Update",
+            description = "Market summary",
+            imageUrl = null,
+            sourceName = "Reuters",
+            publishedAt = "2026-11-04T08:00:00Z"
+        )
+        val existingBusinessKey = RemoteKeys(
+            feedKey = businessFeed,
+            articleUrl = "https://example.com/business-1",
+            prevKey = null,
+            nextKey = 2
+        )
+
+        val fakeArticleDao = FakeArticleDao().apply {
+            insertArticles(listOf(existingBusinessArticle))
+        }
+        val fakeKeysDao = FakeRemoteKeysDao().apply {
+            insertAll(listOf(existingBusinessKey))
+        }
+
+        val fakeApi = FakeNewsApi(
+            responseToReturn = NewsResponseDto(
+                status = "ok",
+                totalResults = 1,
+                articles = listOf(
+                    ArticleDto(title = "Championship Game", url = "https://example.com/sports-1")
+                )
+            )
+        )
+        val sportsMediator = NewsRemoteMediator(
+            feedKey = sportsFeed,
+            newsApi = fakeApi,
+            articleDao = fakeArticleDao,
+            remoteKeysDao = fakeKeysDao,
+            withTransaction = noTransaction
+        )
+
+        sportsMediator.load(LoadType.REFRESH, emptyPagingState())
+
+        assertEquals(1, fakeArticleDao.getFeedArticles(businessFeed).size)
+        assertEquals(existingBusinessArticle, fakeArticleDao.getFeedArticles(businessFeed).first())
+        assertEquals(existingBusinessKey, fakeKeysDao.getRemoteKeys(businessFeed, "https://example.com/business-1"))
+
+        assertEquals(1, fakeArticleDao.getFeedArticles(sportsFeed).size)
+        assertEquals("Championship Game", fakeArticleDao.getFeedArticles(sportsFeed).first().title)
+        assertEquals(sportsFeed, fakeKeysDao.getRemoteKeys(sportsFeed, "https://example.com/sports-1")?.feedKey)
+    }
+
+    @Test
+    fun pagingSource_producesArticlesOrderedByPositionAsc() = runBlocking {
+        val feedKey = FeedKeys.headlines(category = "general")
+        val otherFeedKey = FeedKeys.headlines(category = "science")
+
+        val itemPosition2 = ArticleEntity(
+            feedKey = feedKey,
+            url = "https://example.com/item-2",
+            position = 2,
+            title = "Third Item",
+            description = "Desc",
+            imageUrl = null,
+            sourceName = "Source",
+            publishedAt = "2026-11-04T08:00:00Z"
+        )
+        val itemPosition0 = ArticleEntity(
+            feedKey = feedKey,
+            url = "https://example.com/item-0",
+            position = 0,
+            title = "First Item",
+            description = "Desc",
+            imageUrl = null,
+            sourceName = "Source",
+            publishedAt = "2026-11-04T08:00:00Z"
+        )
+        val itemPosition1 = ArticleEntity(
+            feedKey = feedKey,
+            url = "https://example.com/item-1",
+            position = 1,
+            title = "Second Item",
+            description = "Desc",
+            imageUrl = null,
+            sourceName = "Source",
+            publishedAt = "2026-11-04T08:00:00Z"
+        )
+        val otherFeedItem = ArticleEntity(
+            feedKey = otherFeedKey,
+            url = "https://example.com/science-0",
+            position = 0,
+            title = "Science Item",
+            description = "Desc",
+            imageUrl = null,
+            sourceName = "Source",
+            publishedAt = "2026-11-04T08:00:00Z"
+        )
+
+        val fakeArticleDao = FakeArticleDao().apply {
+            insertArticles(listOf(itemPosition2, itemPosition0, itemPosition1, otherFeedItem))
+        }
+
+        val pagingSource = fakeArticleDao.pagingSource(feedKey)
+        val loadResult = pagingSource.load(
+            PagingSource.LoadParams.Refresh(
+                key = null,
+                loadSize = 10,
+                placeholdersEnabled = false
+            )
+        )
+
+        assertTrue(loadResult is PagingSource.LoadResult.Page)
+        val loadedArticles = (loadResult as PagingSource.LoadResult.Page).data
+        assertEquals(3, loadedArticles.size)
+        assertEquals("First Item", loadedArticles[0].title)
+        assertEquals(0, loadedArticles[0].position)
+        assertEquals("Second Item", loadedArticles[1].title)
+        assertEquals(1, loadedArticles[1].position)
+        assertEquals("Third Item", loadedArticles[2].title)
+        assertEquals(2, loadedArticles[2].position)
+    }
 }
