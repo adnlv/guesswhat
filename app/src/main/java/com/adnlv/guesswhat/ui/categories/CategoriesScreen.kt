@@ -1,5 +1,6 @@
 package com.adnlv.guesswhat.ui.categories
 
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,9 +30,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.paging.LoadState
 import androidx.paging.LoadStates
 import androidx.paging.PagingData
@@ -48,12 +51,18 @@ import kotlinx.coroutines.flow.flowOf
 @Composable
 fun CategoriesScreen(viewModel: CategoriesViewModel? = null, modifier: Modifier = Modifier) {
     if (viewModel != null) {
+        val context = LocalContext.current
         val articles = viewModel.articles.collectAsLazyPagingItems()
         val selectedCategory by viewModel.selectedCategory.collectAsState()
         CategoriesScreenContent(
             articles = articles,
             selectedCategory = selectedCategory,
             onCategorySelected = viewModel::selectCategory,
+            onArticleClick = { url ->
+                CustomTabsIntent.Builder()
+                    .build()
+                    .launchUrl(context, url.toUri())
+            },
             modifier = modifier
         )
     } else {
@@ -73,6 +82,7 @@ fun CategoriesScreen(viewModel: CategoriesViewModel? = null, modifier: Modifier 
             articles = loadingArticles,
             selectedCategory = NewsCategory.DEFAULT,
             onCategorySelected = {},
+            onArticleClick = {},
             modifier = modifier
         )
     }
@@ -83,6 +93,7 @@ fun CategoriesScreenContent(
     articles: LazyPagingItems<Article>,
     selectedCategory: NewsCategory,
     onCategorySelected: (NewsCategory) -> Unit,
+    onArticleClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -100,6 +111,7 @@ fun CategoriesScreenContent(
 
         CategoriesNewsListContent(
             articles = articles,
+            onArticleClick = onArticleClick,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
@@ -147,7 +159,11 @@ fun CategoryFilterChips(
 }
 
 @Composable
-fun CategoriesNewsListContent(articles: LazyPagingItems<Article>, modifier: Modifier = Modifier) {
+fun CategoriesNewsListContent(
+    articles: LazyPagingItems<Article>,
+    onArticleClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
     val refreshState = articles.loadState.refresh
     val appendState = articles.loadState.append
 
@@ -196,7 +212,10 @@ fun CategoriesNewsListContent(articles: LazyPagingItems<Article>, modifier: Modi
                 ) { index ->
                     val article = articles[index]
                     if (article != null) {
-                        ArticleCard(article = article)
+                        ArticleCard(
+                            article = article,
+                            onClick = { onArticleClick(article.url) }
+                        )
                     }
                 }
 
@@ -276,7 +295,8 @@ private fun CategoriesScreenSuccessPreview() {
         CategoriesScreenContent(
             articles = articles,
             selectedCategory = NewsCategory.BUSINESS,
-            onCategorySelected = {}
+            onCategorySelected = {},
+            onArticleClick = {}
         )
     }
 }
@@ -300,7 +320,8 @@ private fun CategoriesScreenLoadingPreview() {
         CategoriesScreenContent(
             articles = articles,
             selectedCategory = NewsCategory.BUSINESS,
-            onCategorySelected = {}
+            onCategorySelected = {},
+            onArticleClick = {}
         )
     }
 }
@@ -324,7 +345,8 @@ private fun CategoriesScreenErrorPreview() {
         CategoriesScreenContent(
             articles = articles,
             selectedCategory = NewsCategory.BUSINESS,
-            onCategorySelected = {}
+            onCategorySelected = {},
+            onArticleClick = {}
         )
     }
 }
