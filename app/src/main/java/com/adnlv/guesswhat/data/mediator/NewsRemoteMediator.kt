@@ -6,6 +6,7 @@ import androidx.paging.PagingState
 import androidx.paging.RemoteMediator
 import com.adnlv.guesswhat.data.FeedKeys
 import com.adnlv.guesswhat.data.FeedType
+import com.adnlv.guesswhat.data.NewsConfig
 import com.adnlv.guesswhat.data.local.ArticleDao
 import com.adnlv.guesswhat.data.local.ArticleEntity
 import com.adnlv.guesswhat.data.local.RemoteKeys
@@ -46,9 +47,6 @@ class NewsRemoteMediator(
             val response = fetchResponse(page = page, pageSize = state.config.pageSize)
 
             if (response.status != "ok") {
-                if (response.code == "maximumResultsReached") {
-                    return MediatorResult.Success(endOfPaginationReached = true)
-                }
                 val message = response.message ?: "Failed to load news"
                 return MediatorResult.Error(IllegalStateException(message))
             }
@@ -58,7 +56,10 @@ class NewsRemoteMediator(
                 feedKey = feedKey,
                 startPosition = startPosition
             )
-            val endOfPaginationReached = entities.isEmpty()
+            val totalResults = response.totalResults ?: Int.MAX_VALUE
+            val endOfPaginationReached = entities.isEmpty() ||
+                page * state.config.pageSize >= totalResults ||
+                page * state.config.pageSize >= NewsConfig.MAX_FREE_PLAN_RESULTS
 
             withTransaction {
                 if (loadType == LoadType.REFRESH) {

@@ -132,7 +132,7 @@ class NewsRemoteMediatorTest {
         val fakeApi = FakeNewsApi(
             responseToReturn = NewsResponseDto(
                 status = "ok",
-                totalResults = 2,
+                totalResults = 40,
                 articles = listOf(
                     ArticleDto(title = "Article 1", url = "https://example.com/1"),
                     ArticleDto(title = "Article 2", url = "https://example.com/2")
@@ -237,7 +237,7 @@ class NewsRemoteMediatorTest {
         val fakeApi = FakeNewsApi(
             responseToReturn = NewsResponseDto(
                 status = "ok",
-                totalResults = 2,
+                totalResults = 60,
                 articles = listOf(
                     ArticleDto(title = "Page 2 Article", url = "https://example.com/2")
                 )
@@ -473,5 +473,102 @@ class NewsRemoteMediatorTest {
         assertEquals(1, loadedArticles[1].position)
         assertEquals("Third Item", loadedArticles[2].title)
         assertEquals(2, loadedArticles[2].position)
+    }
+
+    @Test
+    fun load_whenAllResultsLoaded_returnsEndOfPaginationTrue() = runBlocking {
+        val defaultFeedKey = FeedKeys.headlines()
+        val fakeApi = FakeNewsApi(
+            responseToReturn = NewsResponseDto(
+                status = "ok",
+                totalResults = 10,
+                articles = listOf(
+                    ArticleDto(title = "Article 1", url = "https://example.com/1")
+                )
+            )
+        )
+        val fakeArticleDao = FakeArticleDao()
+        val fakeKeysDao = FakeRemoteKeysDao()
+        val mediator = NewsRemoteMediator(
+            feedKey = defaultFeedKey,
+            newsApi = fakeApi,
+            articleDao = fakeArticleDao,
+            remoteKeysDao = fakeKeysDao,
+            withTransaction = noTransaction
+        )
+
+        val result = mediator.load(LoadType.REFRESH, emptyPagingState())
+
+        assertTrue(result is RemoteMediator.MediatorResult.Success)
+        assertTrue((result as RemoteMediator.MediatorResult.Success).endOfPaginationReached)
+        val storedKey = fakeKeysDao.getRemoteKeys(defaultFeedKey, "https://example.com/1")
+        assertEquals(null, storedKey?.nextKey)
+    }
+
+    @Test
+    fun load_whenFreePlanLimitReached_returnsEndOfPaginationTrue() = runBlocking {
+        val defaultFeedKey = FeedKeys.headlines()
+        val articleAtLimit = ArticleEntity(
+            feedKey = defaultFeedKey,
+            url = "https://example.com/page4",
+            position = 79,
+            title = "Page 4 Article",
+            description = "Desc",
+            imageUrl = null,
+            sourceName = "Source",
+            publishedAt = "2026-11-04T08:00:00Z"
+        )
+        val fakeArticleDao = FakeArticleDao().apply {
+            insertArticles(listOf(articleAtLimit))
+        }
+        val fakeKeysDao = FakeRemoteKeysDao().apply {
+            insertAll(
+                listOf(
+                    RemoteKeys(
+                        feedKey = defaultFeedKey,
+                        articleUrl = "https://example.com/page4",
+                        prevKey = 3,
+                        nextKey = 5
+                    )
+                )
+            )
+        }
+        val fakeApi = FakeNewsApi(
+            responseToReturn = NewsResponseDto(
+                status = "ok",
+                totalResults = 250,
+                articles = listOf(
+                    ArticleDto(title = "Page 5 Article", url = "https://example.com/page5")
+                )
+            )
+        )
+        val mediator = NewsRemoteMediator(
+            feedKey = defaultFeedKey,
+            newsApi = fakeApi,
+            articleDao = fakeArticleDao,
+            remoteKeysDao = fakeKeysDao,
+            withTransaction = noTransaction
+        )
+        val pagingState = PagingState(
+            pages = listOf(
+                PagingSource.LoadResult.Page(
+                    data = listOf(articleAtLimit),
+                    prevKey = 3,
+                    nextKey = 5
+                )
+            ),
+            anchorPosition = 0,
+            config = PagingConfig(pageSize = 20),
+            leadingPlaceholderCount = 0
+        )
+
+        val result = mediator.load(LoadType.APPEND, pagingState)
+
+        assertTrue(result is RemoteMediator.MediatorResult.Success)
+        assertTrue((result as RemoteMediator.MediatorResult.Success).endOfPaginationReached)
+        assertEquals(5, fakeApi.lastPage)
+        val storedKey = fakeKeysDao.getRemoteKeys(defaultFeedKey, "https://example.com/page5")
+        assertEquals(null, storedKey?.nextKey)
+        assertEquals(4, storedKey?.prevKey)
     }
 }
