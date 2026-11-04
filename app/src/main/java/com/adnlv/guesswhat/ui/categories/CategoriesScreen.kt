@@ -252,9 +252,17 @@ private fun CategoriesScreenSuccessPreview() {
                             title = "New AI Model Breakthrough",
                             description = "Researchers demonstrate next generation reasoning system.",
                             url = "https://example.com/tech-news",
-                            imageUrl = null,
+                            imageUrl = "https://example.com/tech.jpg",
                             sourceName = "Tech World",
                             publishedAt = "2026-11-03T05:00:00Z"
+                        ),
+                        Article(
+                            title = "Market Update Without Image",
+                            description = "Quarterly financial summary for global markets.",
+                            url = "https://example.com/market-news",
+                            imageUrl = null,
+                            sourceName = "Tech World",
+                            publishedAt = "2026-11-03T06:00:00Z"
                         )
                     ),
                     sourceLoadStates = LoadStates(

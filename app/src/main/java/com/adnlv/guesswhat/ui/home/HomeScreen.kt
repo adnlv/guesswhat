@@ -251,9 +251,17 @@ private fun HomeScreenSuccessPreview() {
                             title = "Sample News Headline from Ukraine",
                             description = "This is a brief preview description for the news card.",
                             url = "https://example.com/1",
-                            imageUrl = null,
+                            imageUrl = "https://example.com/image1.jpg",
                             sourceName = "Kyiv Post",
                             publishedAt = "2026-11-02T18:00:00Z"
+                        ),
+                        Article(
+                            title = "Second Headline Without Thumbnail",
+                            description = "This article card renders without an image header.",
+                            url = "https://example.com/2",
+                            imageUrl = null,
+                            sourceName = "Kyiv Post",
+                            publishedAt = "2026-11-02T19:00:00Z"
                         )
                     ),
                     sourceLoadStates = LoadStates(
