@@ -28,10 +28,7 @@ class NewsRemoteMediator(
 
     override suspend fun load(loadType: LoadType, state: PagingState<Int, ArticleEntity>): MediatorResult {
         val page = when (loadType) {
-            LoadType.REFRESH -> {
-                val remoteKeys = getRemoteKeyClosestToCurrentPosition(state)
-                remoteKeys?.nextKey?.minus(1) ?: STARTING_PAGE_INDEX
-            }
+            LoadType.REFRESH -> STARTING_PAGE_INDEX
             LoadType.PREPEND -> {
                 return MediatorResult.Success(endOfPaginationReached = true)
             }
@@ -114,13 +111,6 @@ class NewsRemoteMediator(
     private suspend fun getRemoteKeyForLastItem(state: PagingState<Int, ArticleEntity>): RemoteKeys? =
         state.pages.lastOrNull { it.data.isNotEmpty() }?.data?.lastOrNull()
             ?.let { article -> remoteKeysDao.getRemoteKeys(feedKey = feedKey, url = article.url) }
-
-    private suspend fun getRemoteKeyClosestToCurrentPosition(state: PagingState<Int, ArticleEntity>): RemoteKeys? =
-        state.anchorPosition?.let { position ->
-            state.closestItemToPosition(position)?.let { article ->
-                remoteKeysDao.getRemoteKeys(feedKey = feedKey, url = article.url)
-            }
-        }
 
     companion object {
         private const val STARTING_PAGE_INDEX = 1

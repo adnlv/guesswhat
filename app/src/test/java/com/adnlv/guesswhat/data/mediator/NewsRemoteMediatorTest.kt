@@ -571,4 +571,53 @@ class NewsRemoteMediatorTest {
         assertEquals(null, storedKey?.nextKey)
         assertEquals(4, storedKey?.prevKey)
     }
+
+    @Test
+    fun load_refreshWithExistingScrollPosition_alwaysLoadsPageOne() = runBlocking {
+        val defaultFeedKey = FeedKeys.headlines()
+        val fakeApi = FakeNewsApi(
+            responseToReturn = NewsResponseDto(
+                status = "ok",
+                totalResults = 40,
+                articles = listOf(
+                    ArticleDto(title = "Fresh Headline", url = "https://example.com/fresh-1")
+                )
+            )
+        )
+        val mediator = NewsRemoteMediator(
+            feedKey = defaultFeedKey,
+            newsApi = fakeApi,
+            articleDao = FakeArticleDao(),
+            remoteKeysDao = FakeRemoteKeysDao(),
+            withTransaction = noTransaction
+        )
+        val deepScrollState = PagingState(
+            pages = listOf(
+                PagingSource.LoadResult.Page(
+                    data = listOf(
+                        ArticleEntity(
+                            feedKey = defaultFeedKey,
+                            url = "https://example.com/page-3",
+                            position = 45,
+                            title = "Page 3 Article",
+                            description = "Desc",
+                            imageUrl = null,
+                            sourceName = "Source",
+                            publishedAt = "2026-11-04T00:00:00Z"
+                        )
+                    ),
+                    prevKey = 2,
+                    nextKey = 4
+                )
+            ),
+            anchorPosition = 0,
+            config = PagingConfig(pageSize = 20),
+            leadingPlaceholderCount = 0
+        )
+
+        val result = mediator.load(LoadType.REFRESH, deepScrollState)
+
+        assertTrue(result is RemoteMediator.MediatorResult.Success)
+        assertEquals(1, fakeApi.lastPage)
+    }
 }
