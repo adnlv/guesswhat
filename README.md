@@ -50,3 +50,7 @@ To run unit tests:
 ## Use of AI
 
 AI was used during preparation for researching documentation, discussing trade-offs, and drafting boilerplate. All code in the repository was written, adapted, and understood by me to fit the chosen architecture and stack.
+
+## License
+
+Licensed under the [GNU General Public License v3.0](LICENSE).
