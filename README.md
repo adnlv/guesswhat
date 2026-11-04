@@ -30,3 +30,23 @@ To run unit tests:
 ```bash
 ./gradlew testDebugUnitTest
 ```
+
+## Tech Stack
+
+| Area | Choice |
+|---|---|
+| UI | Jetpack Compose (Material 3) |
+| Navigation | Navigation Compose (bottom bar, 2 tabs) |
+| Networking | Retrofit + OkHttp |
+| JSON | kotlinx.serialization |
+| Asynchrony | Kotlin Coroutines + Flow |
+| Local database | Room |
+| Pagination | Paging 3 + RemoteMediator |
+| Architecture | MVVM + Repository, state via StateFlow |
+| DI | Manual (`AppContainer`) |
+| Images | Coil 3 |
+| Article viewing | Chrome Custom Tabs (`androidx.browser`) |
+
+## Use of AI
+
+AI was used during preparation for researching documentation, discussing trade-offs, and drafting boilerplate. All code in the repository was written, adapted, and understood by me to fit the chosen architecture and stack.
