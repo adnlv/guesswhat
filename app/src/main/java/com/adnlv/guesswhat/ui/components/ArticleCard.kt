@@ -22,8 +22,9 @@ import com.adnlv.guesswhat.model.Article
 import com.adnlv.guesswhat.ui.theme.GuessWhatTheme
 
 @Composable
-fun ArticleCard(article: Article, modifier: Modifier = Modifier) {
+fun ArticleCard(article: Article, onClick: () -> Unit = {}, modifier: Modifier = Modifier) {
     Card(
+        onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -88,6 +89,7 @@ private fun ArticleCardWithImagePreview() {
                 sourceName = "Kyiv Post",
                 publishedAt = "2026-11-02T18:00:00Z"
             ),
+            onClick = {},
             modifier = Modifier.padding(16.dp)
         )
     }
@@ -106,6 +108,7 @@ private fun ArticleCardWithoutImagePreview() {
                 sourceName = "Kyiv Post",
                 publishedAt = "2026-11-02T18:00:00Z"
             ),
+            onClick = {},
             modifier = Modifier.padding(16.dp)
         )
     }
